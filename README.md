@@ -181,8 +181,10 @@ zabbix-report-center/
 │   ├── templates/     # HTML 模板
 │   └── static/        # 静态资源
 ├── doc/                # 文档
+│   └── images/        # 截图
 ├── exports/            # 导出文件
-├── Dockerfile                  # Docker 镜像配置
+├── .env.example        # 环境变量模板
+├── Dockerfile          # Docker 镜像配置
 ├── docker-compose.yml.example  # Docker Compose 配置模板
 ├── requirements.txt    # Python 依赖
 └── run.py             # 启动脚本
