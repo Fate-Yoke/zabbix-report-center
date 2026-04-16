@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Zabbix Report Center{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/static/css/custom.css" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                Zabbix Report Center
+            </a>
+            {% if current_user %}
+            <!-- Zabbix配置选择 -->
+            <div class="d-flex align-items-center me-auto ms-3" id="zabbix-config-container">
+                <div class="dropdown">
+                    <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" id="zabbixConfigDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-server"></i> <span id="selected-config-name">请选择配置</span>
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="zabbixConfigDropdown" id="zabbix-config-menu">
+                        <li><a class="dropdown-item" href="#" data-config-id="">请选择配置</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="d-flex align-items-center">
+                <div class="dropdown">
+                    <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-person-circle"></i> {{ current_user.username }}
+                        {% if current_user.is_admin %}<span class="badge bg-warning text-dark">管理员</span>{% endif %}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                        <li><a class="dropdown-item" href="/profile"><i class="bi bi-person"></i> 个人信息</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="/logout"><i class="bi bi-box-arrow-right"></i> 退出登录</a></li>
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container-fluid p-0">
+        <div class="row g-0">
+            {% if current_user %}
+            <!-- 侧边栏 -->
+            <div class="col-md-2 sidebar">
+                <nav class="nav flex-column">
+                    <a class="nav-link" href="/" id="nav-home">
+                        <i class="bi bi-house-door"></i> 首页
+                    </a>
+                    <a class="nav-link" href="/monitor" id="nav-monitor">
+                        <i class="bi bi-activity"></i> 监控信息
+                    </a>
+                    <a class="nav-link" href="/alerts" id="nav-alerts">
+                        <i class="bi bi-exclamation-triangle"></i> 告警信息
+                    </a>
+                    <a class="nav-link" href="/tasks" id="nav-tasks">
+                        <i class="bi bi-clock-history"></i> 定时任务
+                    </a>
+                    {% if current_user.is_admin %}
+                    <hr class="my-2">
+                    <span class="nav-link disabled text-muted">管理员</span>
+                    <a class="nav-link" href="/admin/users" id="nav-users">
+                        <i class="bi bi-people"></i> 用户管理
+                    </a>
+                    <a class="nav-link" href="/admin/zabbix-config" id="nav-zabbix">
+                        <i class="bi bi-gear"></i> Zabbix配置
+                    </a>
+                    <a class="nav-link" href="/admin/email-config" id="nav-email">
+                        <i class="bi bi-envelope"></i> 邮件配置
+                    </a>
+                    <a class="nav-link" href="/admin/system" id="nav-system">
+                        <i class="bi bi-sliders"></i> 系统设置
+                    </a>
+                    <a class="nav-link" href="/admin/logs" id="nav-logs">
+                        <i class="bi bi-file-text"></i> 系统日志
+                    </a>
+                    {% endif %}
+                </nav>
+            </div>
+            <div class="col-md-10 main-content">
+            {% else %}
+            <div class="col-12 main-content">
+            {% endif %}
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 全局Zabbix配置管理
+        let globalZabbixConfigs = [];
+
+        // 加载Zabbix配置列表
+        async function loadGlobalZabbixConfigs() {
+            try {
+                console.log('[DEBUG] Loading Zabbix configs...');
+                const response = await fetch('/api/zabbix-config');
+                console.log('[DEBUG] Zabbix config response status:', response.status);
+                const allConfigs = await response.json();
+                console.log('[DEBUG] All configs:', allConfigs);
+
+                // 获取当前用户信息
+                const meResponse = await fetch('/api/auth/me');
+                console.log('[DEBUG] User info response status:', meResponse.status);
+                const currentUser = await meResponse.json();
+                console.log('[DEBUG] Current user:', currentUser);
+
+                // 筛选用户有权限访问的配置
+                if (currentUser.is_admin) {
+                    // 管理员可以访问所有配置
+                    globalZabbixConfigs = allConfigs.filter(c => c.is_active);
+                    console.log('[DEBUG] Admin user, filtered configs:', globalZabbixConfigs);
+                } else {
+                    // 普通用户只能访问被授权的配置
+                    const allowedIds = currentUser.allowed_zabbix_ids || [];
+                    console.log('[DEBUG] Regular user, allowed IDs:', allowedIds);
+                    globalZabbixConfigs = allConfigs.filter(c => c.is_active && allowedIds.includes(c.id));
+                    console.log('[DEBUG] Filtered configs:', globalZabbixConfigs);
+                }
+
+                const menu = document.getElementById('zabbix-config-menu');
+                const button = document.getElementById('zabbixConfigDropdown');
+
+                // 根据当前页面决定是否显示"未配置"选项
+                const currentPath = window.location.pathname;
+                const showUnconfiguredOption = currentPath === '/monitor' || currentPath === '/tasks';
+
+                let menuHTML = '<li><a class="dropdown-item" href="#" data-config-id="" onclick="selectZabbixConfig(\'\', \'请选择配置\')"><i class="bi bi-gear"></i> 请选择配置</a></li>';
+
+                // 监控信息和定时任务页面添加"未配置"选项
+                if (showUnconfiguredOption) {
+                    menuHTML += '<li><a class="dropdown-item" href="#" data-config-id="unconfigured" onclick="selectZabbixConfig(\'unconfigured\', \'未配置\')"><i class="bi bi-x-circle"></i> 未配置</a></li>';
+                }
+
+                if (globalZabbixConfigs.length > 0) {
+                    menuHTML += '<li><hr class="dropdown-divider"></li>';
+                    globalZabbixConfigs.forEach(config => {
+                        menuHTML += `<li><a class="dropdown-item" href="#" data-config-id="${config.id}" onclick="selectZabbixConfig('${config.id}', '${config.name}')"><i class="bi bi-server"></i> ${config.name}</a></li>`;
+                    });
+                } else {
+                    menuHTML = '<li><a class="dropdown-item disabled" href="#"><i class="bi bi-exclamation-circle"></i> 无可用配置</a></li>';
+                    button.disabled = true;
+                }
+
+                menu.innerHTML = menuHTML;
+
+                console.log('[DEBUG] Total configs added to dropdown:', globalZabbixConfigs.length);
+
+                // 恢复上次选择的配置
+                const savedId = localStorage.getItem('selectedZabbixConfigId');
+                console.log('[DEBUG] Saved ID from localStorage:', savedId);
+                if (savedId) {
+                    const savedConfig = globalZabbixConfigs.find(c => c.id == savedId);
+                    if (savedConfig) {
+                        document.getElementById('selected-config-name').textContent = savedConfig.name;
+                        console.log('[DEBUG] Restored saved config:', savedId);
+                    } else if (savedId === 'unconfigured') {
+                        document.getElementById('selected-config-name').textContent = '未配置';
+                    }
+                }
+
+                // 触发自定义事件，通知页面配置已加载
+                window.dispatchEvent(new CustomEvent('zabbixConfigLoaded', {
+                    detail: { configId: savedId || '' }
+                }));
+                console.log('[DEBUG] Dispatched zabbixConfigLoaded event with configId:', savedId);
+            } catch (error) {
+                console.error('[DEBUG] Error in loadGlobalZabbixConfigs:', error);
+            }
+        }
+
+        // 选择配置
+        function selectZabbixConfig(configId, configName) {
+            event.preventDefault();
+            document.getElementById('selected-config-name').textContent = configName;
+
+            if (configId) {
+                localStorage.setItem('selectedZabbixConfigId', configId);
+            } else {
+                localStorage.removeItem('selectedZabbixConfigId');
+            }
+
+            // 触发自定义事件，通知页面配置已改变
+            window.dispatchEvent(new CustomEvent('zabbixConfigChanged', { detail: { configId: configId } }));
+        }
+
+        // 保存选择的配置（保留兼容性）
+        function saveZabbixConfig() {
+            // 已废弃，使用 selectZabbixConfig 代替
+        }
+
+        // 获取当前选择的配置ID
+        function getSelectedZabbixConfigId() {
+            return localStorage.getItem('selectedZabbixConfigId') || '';
+        }
+
+        // 获取当前选择的配置对象
+        function getSelectedZabbixConfig() {
+            const configId = getSelectedZabbixConfigId();
+            return globalZabbixConfigs.find(c => c.id == configId);
+        }
+
+        // 高亮当前导航
+        function highlightNav() {
+            const path = window.location.pathname;
+            const navMap = {
+                '/': 'nav-home',
+                '/monitor': 'nav-monitor',
+                '/tasks': 'nav-tasks',
+                '/alerts': 'nav-alerts',
+                '/profile': 'nav-profile',
+                '/admin/users': 'nav-users',
+                '/admin/zabbix-config': 'nav-zabbix',
+                '/admin/email-config': 'nav-email',
+                '/admin/system': 'nav-system',
+                '/admin/logs': 'nav-logs'
+            };
+            const navId = navMap[path];
+            if (navId) {
+                const navLink = document.getElementById(navId);
+                if (navLink) {
+                    navLink.classList.add('active');
+                }
+            }
+
+            // 如果是管理员页面，隐藏全局Zabbix配置选择框
+            const zabbixContainer = document.getElementById('zabbix-config-container');
+            if (zabbixContainer) {
+                if (path.startsWith('/admin/')) {
+                    zabbixContainer.style.setProperty('display', 'none', 'important');
+                    zabbixContainer.classList.add('d-none');
+                } else {
+                    zabbixContainer.style.display = 'flex';
+                    zabbixContainer.classList.remove('d-none');
+                }
+            }
+        }
+
+        // 初始化
+        {% if current_user %}
+        loadGlobalZabbixConfigs();
+        {% endif %}
+        highlightNav();
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

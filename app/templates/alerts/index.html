@@ -1,0 +1,911 @@
+{% extends "base.html" %}
+
+{% block title %}告警信息{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h2><i class="bi bi-exclamation-triangle"></i> 告警信息</h2>
+            <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-sm btn-primary" onclick="loadAlerts()" id="refresh-btn">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+                <button class="btn btn-sm btn-info" onclick="showExportModal()">
+                    <i class="bi bi-download"></i> 导出Excel
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="showExportHistory()">
+                    <i class="bi bi-clock-history"></i> 导出历史
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- 筛选条件 -->
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label class="form-label">告警级别（可多选）</label>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start" type="button" id="severityDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span id="severity-display">全部级别</span>
+                        </button>
+                        <ul class="dropdown-menu p-2" aria-labelledby="severityDropdown" style="min-width: 200px;" onclick="event.stopPropagation();">
+                            <li>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="severity-all" onchange="toggleAllMainSeverities(this)">
+                                    <label class="form-check-label fw-bold" for="severity-all">
+                                        全选
+                                    </label>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <div class="form-check">
+                                    <input class="form-check-input main-severity-checkbox" type="checkbox" value="5" id="severity-5" onchange="updateSeverityDisplay()">
+                                    <label class="form-check-label" for="severity-5">
+                                        <span class="badge bg-danger">灾难</span>
+                                    </label>
+                                </div>
+                            </li>
+                            <li>
+                                <div class="form-check">
+                                    <input class="form-check-input main-severity-checkbox" type="checkbox" value="4" id="severity-4" onchange="updateSeverityDisplay()">
+                                    <label class="form-check-label" for="severity-4">
+                                        <span class="badge bg-warning text-dark">严重</span>
+                                    </label>
+                                </div>
+                            </li>
+                            <li>
+                                <div class="form-check">
+                                    <input class="form-check-input main-severity-checkbox" type="checkbox" value="3" id="severity-3" onchange="updateSeverityDisplay()">
+                                    <label class="form-check-label" for="severity-3">
+                                        <span class="badge bg-info">一般严重</span>
+                                    </label>
+                                </div>
+                            </li>
+                            <li>
+                                <div class="form-check">
+                                    <input class="form-check-input main-severity-checkbox" type="checkbox" value="2" id="severity-2" onchange="updateSeverityDisplay()">
+                                    <label class="form-check-label" for="severity-2">
+                                        <span class="badge bg-primary">警告</span>
+                                    </label>
+                                </div>
+                            </li>
+                            <li>
+                                <div class="form-check">
+                                    <input class="form-check-input main-severity-checkbox" type="checkbox" value="1" id="severity-1" onchange="updateSeverityDisplay()">
+                                    <label class="form-check-label" for="severity-1">
+                                        <span class="badge bg-success">信息</span>
+                                    </label>
+                                </div>
+                            </li>
+                            <li>
+                                <div class="form-check">
+                                    <input class="form-check-input main-severity-checkbox" type="checkbox" value="0" id="severity-0" onchange="updateSeverityDisplay()">
+                                    <label class="form-check-label" for="severity-0">
+                                        <span class="badge bg-secondary">未分类</span>
+                                    </label>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="btn btn-sm btn-primary w-100" onclick="loadAlerts(); bootstrap.Dropdown.getInstance(document.getElementById('severityDropdown')).hide();">
+                                    应用筛选
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">恢复状态</label>
+                    <select class="form-select form-select-sm" id="recovered-filter" onchange="loadAlerts()">
+                        <option value="all">全部</option>
+                        <option value="unrecovered">未恢复</option>
+                        <option value="recovered">已恢复</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">发生时间（从）</label>
+                    <input type="datetime-local" class="form-control form-control-sm" id="time-from" onchange="loadAlerts()">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">发生时间（到）</label>
+                    <input type="datetime-local" class="form-control form-control-sm" id="time-till" onchange="loadAlerts()">
+                </div>
+            </div>
+
+            <!-- 统计信息 -->
+            <div class="alert alert-info" id="stats-info" style="display: none;">
+                <i class="bi bi-info-circle"></i>
+                共 <strong id="total-count">0</strong> 条告警，
+                未恢复 <strong id="unrecovered-count">0</strong> 条
+                <span id="display-info" class="ms-2 text-muted"></span>
+            </div>
+
+            <!-- 加载提示 -->
+            <div class="text-center py-5" id="loading-placeholder">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <p class="mt-2 text-muted">加载告警信息中...</p>
+            </div>
+
+            <!-- 告警表格 -->
+            <div id="alerts-content" style="display: none;">
+                <style>
+                    .alert-sortable-th {
+                        cursor: pointer;
+                        user-select: none;
+                        white-space: nowrap;
+                    }
+                    .alert-sortable-th:hover {
+                        background-color: #f1f5f9;
+                    }
+                    .alert-sort-icon {
+                        margin-left: 4px;
+                        font-size: 0.75rem;
+                        opacity: 0.3;
+                    }
+                    .alert-sortable-th.sort-asc .alert-sort-icon,
+                    .alert-sortable-th.sort-desc .alert-sort-icon {
+                        opacity: 1;
+                    }
+                </style>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">序号</th>
+                                <th class="alert-sortable-th" data-column="severity" onclick="sortAlerts('severity')">告警级别 <i class="alert-sort-icon bi"></i></th>
+                                <th class="alert-sortable-th" data-column="host_groups" onclick="sortAlerts('host_groups')">主机群组 <i class="alert-sort-icon bi"></i></th>
+                                <th class="alert-sortable-th" data-column="host_name" onclick="sortAlerts('host_name')">主机名 <i class="alert-sort-icon bi"></i></th>
+                                <th class="alert-sortable-th" data-column="host_ip" onclick="sortAlerts('host_ip')">主机IP <i class="alert-sort-icon bi"></i></th>
+                                <th class="alert-sortable-th" data-column="name" onclick="sortAlerts('name')">告警信息 <i class="alert-sort-icon bi"></i></th>
+                                <th class="alert-sortable-th" data-column="clock" onclick="sortAlerts('clock')">发生时间 <i class="alert-sort-icon bi"></i></th>
+                                <th class="alert-sortable-th" data-column="r_clock" onclick="sortAlerts('r_clock')">恢复时间 <i class="alert-sort-icon bi"></i></th>
+                                <th class="alert-sortable-th" data-column="duration" onclick="sortAlerts('duration')">持续时间 <i class="alert-sort-icon bi"></i></th>
+                                <th class="alert-sortable-th" data-column="recovered" onclick="sortAlerts('recovered')">状态 <i class="alert-sort-icon bi"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="alerts-table-body">
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 加载更多按钮 -->
+                <div class="text-center mt-3" id="load-more-container" style="display: none;">
+                    <button class="btn btn-outline-primary" onclick="loadMoreAlerts()">
+                        <i class="bi bi-arrow-down-circle"></i> 加载更多
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 导出模态框 -->
+<div class="modal fade" id="exportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">导出告警信息</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">时间范围</label>
+                    <div class="row">
+                        <div class="col-6">
+                            <input type="datetime-local" class="form-control" id="export-time-from">
+                            <small class="text-muted">开始时间</small>
+                        </div>
+                        <div class="col-6">
+                            <input type="datetime-local" class="form-control" id="export-time-till">
+                            <small class="text-muted">结束时间</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">告警级别（可多选，至少选一个）</label>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="export-severity-all" onchange="toggleAllSeverities(this)">
+                        <label class="form-check-label fw-bold" for="export-severity-all">
+                            全选
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input severity-checkbox" type="checkbox" value="5" id="export-severity-5">
+                        <label class="form-check-label" for="export-severity-5">
+                            <span class="badge bg-danger">灾难</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input severity-checkbox" type="checkbox" value="4" id="export-severity-4">
+                        <label class="form-check-label" for="export-severity-4">
+                            <span class="badge bg-warning text-dark">严重</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input severity-checkbox" type="checkbox" value="3" id="export-severity-3">
+                        <label class="form-check-label" for="export-severity-3">
+                            <span class="badge bg-info">一般严重</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input severity-checkbox" type="checkbox" value="2" id="export-severity-2">
+                        <label class="form-check-label" for="export-severity-2">
+                            <span class="badge bg-primary">警告</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input severity-checkbox" type="checkbox" value="1" id="export-severity-1">
+                        <label class="form-check-label" for="export-severity-1">
+                            <span class="badge bg-success">信息</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input severity-checkbox" type="checkbox" value="0" id="export-severity-0">
+                        <label class="form-check-label" for="export-severity-0">
+                            <span class="badge bg-secondary">未分类</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">恢复状态</label>
+                    <select class="form-select" id="export-recovered">
+                        <option value="all">全部</option>
+                        <option value="unrecovered">未恢复</option>
+                        <option value="recovered">已恢复</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="exportAlerts()">
+                    <i class="bi bi-download"></i> 导出Excel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 导出历史模态框 -->
+<div class="modal fade" id="exportHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">导出历史</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Zabbix配置</th>
+                                <th>时间范围</th>
+                                <th>告警级别</th>
+                                <th>恢复状态</th>
+                                <th>状态</th>
+                                <th>记录数</th>
+                                <th>创建时间</th>
+                                <th>完成时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="export-history-tbody">
+                            <tr>
+                                <td colspan="10" class="text-center">
+                                    <div class="spinner-border spinner-border-sm" role="status">
+                                        <span class="visually-hidden">加载中...</span>
+                                    </div>
+                                    加载中...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="loadExportHistory()">
+                    <i class="bi bi-arrow-clockwise"></i> 刷新
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 设置默认时间范围为最近24小时
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    document.getElementById('time-from').value = formatDateTimeLocal(yesterday);
+    document.getElementById('time-till').value = formatDateTimeLocal(now);
+
+    // 默认全选所有告警级别
+    for (let i = 0; i <= 5; i++) {
+        const checkbox = document.getElementById(`severity-${i}`);
+        if (checkbox) {
+            checkbox.checked = true;
+        }
+    }
+    document.getElementById('severity-all').checked = true;
+    updateSeverityDisplay();
+
+    // 监听全局配置变化
+    window.addEventListener('zabbixConfigChanged', function(e) {
+        if (e.detail && e.detail.configId) {
+            loadAlerts();
+        }
+    });
+
+    // 如果已有选中的配置，自动加载
+    const currentConfigId = localStorage.getItem('selectedZabbixConfigId');
+    if (currentConfigId && currentConfigId !== '' && currentConfigId !== 'null') {
+        loadAlerts();
+    } else {
+        // 显示提示信息
+        document.getElementById('loading-placeholder').innerHTML =
+            '<div class="text-center py-5"><p class="text-muted">请先在左上角选择Zabbix配置</p></div>';
+    }
+});
+
+// 格式化日期时间为 datetime-local 格式
+function formatDateTimeLocal(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// 获取当前选中的Zabbix配置ID
+function getCurrentConfigId() {
+    return localStorage.getItem('selectedZabbixConfigId') || '';
+}
+
+// 全局变量存储当前加载状态
+let currentLimit = 50;
+let allAlertsLoaded = false;
+let currentFilters = {};
+let currentRowNumber = 0; // 当前行号
+
+// 排序状态
+let alertSortColumn = null;
+let alertSortDirection = 'asc';
+let currentAlertsData = []; // 存储当前加载的告警数据
+
+// 排序函数
+function sortAlerts(column) {
+    if (alertSortColumn === column) {
+        alertSortDirection = alertSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        alertSortColumn = column;
+        alertSortDirection = 'asc';
+    }
+
+    currentAlertsData.sort((a, b) => {
+        let valA, valB;
+
+        switch (column) {
+            case 'severity':
+                valA = a.severity;
+                valB = b.severity;
+                break;
+            case 'host_groups':
+                valA = (a.host_groups || '').toLowerCase();
+                valB = (b.host_groups || '').toLowerCase();
+                break;
+            case 'host_name':
+                valA = (a.host_name || '').toLowerCase();
+                valB = (b.host_name || '').toLowerCase();
+                break;
+            case 'host_ip':
+                valA = (a.host_ip || '').toLowerCase();
+                valB = (b.host_ip || '').toLowerCase();
+                break;
+            case 'name':
+                valA = (a.name || '').toLowerCase();
+                valB = (b.name || '').toLowerCase();
+                break;
+            case 'clock':
+                valA = a.clock || 0;
+                valB = b.clock || 0;
+                break;
+            case 'r_clock':
+                valA = a.r_clock || 0;
+                valB = b.r_clock || 0;
+                break;
+            case 'duration':
+                valA = a.duration || 0;
+                valB = b.duration || 0;
+                break;
+            case 'recovered':
+                valA = a.recovered ? 1 : 0;
+                valB = b.recovered ? 1 : 0;
+                break;
+            default:
+                return 0;
+        }
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return alertSortDirection === 'asc' ? valA - valB : valB - valA;
+        } else {
+            if (valA < valB) return alertSortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return alertSortDirection === 'asc' ? 1 : -1;
+            return 0;
+        }
+    });
+
+    renderAlertsFromData();
+    updateAlertSortIndicators();
+}
+
+// 更新排序指示器
+function updateAlertSortIndicators() {
+    document.querySelectorAll('.alert-sortable-th').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        const icon = th.querySelector('.alert-sort-icon');
+        if (icon) {
+            icon.className = 'alert-sort-icon bi';
+        }
+    });
+
+    if (alertSortColumn) {
+        const th = document.querySelector(`.alert-sortable-th[data-column="${alertSortColumn}"]`);
+        if (th) {
+            th.classList.add(alertSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+            const icon = th.querySelector('.alert-sort-icon');
+            if (icon) {
+                icon.className = 'alert-sort-icon bi ' + (alertSortDirection === 'asc' ? 'bi-caret-up-fill' : 'bi-caret-down-fill');
+            }
+        }
+    }
+}
+
+// 加载告警信息
+async function loadAlerts() {
+    currentLimit = 50; // 重置为初始值
+    allAlertsLoaded = false;
+    currentRowNumber = 0; // 重置行号
+    currentAlertsData = []; // 重置数据
+    alertSortColumn = null; // 重置排序
+    alertSortDirection = 'asc';
+    await fetchAlerts(false);
+}
+
+// 加载更多告警
+async function loadMoreAlerts() {
+    currentLimit += 50;
+    await fetchAlerts(true);
+}
+
+// 获取告警数据
+async function fetchAlerts(append = false) {
+    const configId = getCurrentConfigId();
+    if (!configId) {
+        document.getElementById('loading-placeholder').innerHTML =
+            '<div class="text-center py-5"><p class="text-muted">请先在左上角选择Zabbix配置</p></div>';
+        return;
+    }
+
+    // 收集选中的告警级别
+    const selectedSeverities = [];
+    for (let i = 0; i <= 5; i++) {
+        const checkbox = document.getElementById(`severity-${i}`);
+        if (checkbox && checkbox.checked) {
+            selectedSeverities.push(i);
+        }
+    }
+    const severity = selectedSeverities.join(',');
+
+    const recovered = document.getElementById('recovered-filter').value;
+    const timeFrom = document.getElementById('time-from').value;
+    const timeTill = document.getElementById('time-till').value;
+
+    // 保存当前筛选条件
+    currentFilters = { configId, severity, recovered, timeFrom, timeTill };
+
+    let url = `/api/alerts/?zabbix_config_id=${configId}&limit=${currentLimit}`;
+    if (severity) url += `&severity=${severity}`;
+    if (recovered && recovered !== 'all') url += `&recovered=${recovered}`;
+    if (timeFrom) url += `&time_from=${Math.floor(new Date(timeFrom).getTime() / 1000)}`;
+    if (timeTill) url += `&time_till=${Math.floor(new Date(timeTill).getTime() / 1000)}`;
+
+    if (!append) {
+        document.getElementById('loading-placeholder').style.display = 'block';
+        document.getElementById('alerts-content').style.display = 'none';
+        document.getElementById('stats-info').style.display = 'none';
+    }
+
+    try {
+        const response = await fetch(url, {
+            credentials: 'same-origin'
+        });
+        const data = await response.json();
+
+        // 检查是否需要登录
+        if (response.status === 401) {
+            alert('登录已过期，请重新登录');
+            window.location.href = '/login';
+            return;
+        }
+
+        // 检查返回数据是否有效
+        if (!data || !data.alerts) {
+            document.getElementById('loading-placeholder').innerHTML =
+                '<div class="text-center py-5"><p class="text-muted">暂无告警数据</p></div>';
+            document.getElementById('loading-placeholder').style.display = 'block';
+            document.getElementById('alerts-content').style.display = 'none';
+            document.getElementById('stats-info').style.display = 'none';
+            return;
+        }
+
+        renderAlerts(data.alerts, append);
+        updateStats(data);
+
+        // 更新显示信息
+        const displayInfo = document.getElementById('display-info');
+        if (data.has_more) {
+            displayInfo.textContent = `(当前显示前 ${data.returned} 条)`;
+            document.getElementById('load-more-container').style.display = 'block';
+        } else {
+            displayInfo.textContent = data.total > 50 ? `(已显示全部)` : '';
+            document.getElementById('load-more-container').style.display = 'none';
+        }
+
+        document.getElementById('loading-placeholder').style.display = 'none';
+        document.getElementById('alerts-content').style.display = 'block';
+        document.getElementById('stats-info').style.display = 'block';
+    } catch (error) {
+        console.error('加载告警失败:', error);
+        alert('加载告警失败: ' + error.message);
+        document.getElementById('loading-placeholder').style.display = 'none';
+    }
+}
+
+// 渲染告警表格
+function renderAlerts(alerts, append = false) {
+    if (!append) {
+        currentAlertsData = [];
+        currentRowNumber = 0;
+        alertSortColumn = null;
+        alertSortDirection = 'asc';
+    }
+
+    currentAlertsData = currentAlertsData.concat(alerts);
+    renderAlertsFromData();
+}
+
+// 从数据渲染表格
+function renderAlertsFromData() {
+    const tbody = document.getElementById('alerts-table-body');
+    tbody.innerHTML = '';
+    currentRowNumber = 0;
+
+    if (currentAlertsData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">暂无告警数据</td></tr>';
+        return;
+    }
+
+    currentAlertsData.forEach(alert => {
+        currentRowNumber++;
+        const tr = document.createElement('tr');
+
+        // 告警级别样式
+        let severityClass = 'badge bg-secondary';
+        if (alert.severity === 5) severityClass = 'badge bg-danger';
+        else if (alert.severity === 4) severityClass = 'badge bg-warning text-dark';
+        else if (alert.severity === 3) severityClass = 'badge bg-info';
+        else if (alert.severity === 2) severityClass = 'badge bg-primary';
+        else if (alert.severity === 1) severityClass = 'badge bg-success';
+
+        // 恢复状态样式
+        const statusBadge = alert.recovered
+            ? '<span class="badge bg-success">已恢复</span>'
+            : '<span class="badge bg-danger">未恢复</span>';
+
+        // 格式化时间
+        const clockTime = new Date(alert.clock * 1000).toLocaleString('zh-CN');
+        const rClockTime = alert.r_clock ? new Date(alert.r_clock * 1000).toLocaleString('zh-CN') : '-';
+
+        // 格式化持续时间
+        const duration = formatDuration(alert.duration);
+
+        tr.innerHTML = `
+            <td class="text-center">${currentRowNumber}</td>
+            <td><span class="${severityClass}">${alert.severity_name}</span></td>
+            <td>${alert.host_groups}</td>
+            <td>${alert.host_name}</td>
+            <td>${alert.host_ip}</td>
+            <td>${alert.name}</td>
+            <td>${clockTime}</td>
+            <td>${rClockTime}</td>
+            <td>${duration}</td>
+            <td>${statusBadge}</td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+
+    updateAlertSortIndicators();
+}
+
+// 格式化持续时间
+function formatDuration(seconds) {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    let result = [];
+    if (days > 0) result.push(`${days}天`);
+    if (hours > 0) result.push(`${hours}小时`);
+    if (minutes > 0) result.push(`${minutes}分钟`);
+    if (secs > 0 || result.length === 0) result.push(`${secs}秒`);
+
+    return result.join(' ');
+}
+
+// 更新统计信息
+function updateStats(data) {
+    const alerts = data.alerts || [];
+    const total = data.total || alerts.length;
+    const unrecovered = alerts.filter(a => !a.recovered).length;
+
+    document.getElementById('total-count').textContent = total;
+    document.getElementById('unrecovered-count').textContent = unrecovered;
+}
+
+// 显示导出模态框
+function showExportModal() {
+    const configId = getCurrentConfigId();
+    if (!configId) {
+        alert('请先在左上角选择Zabbix配置');
+        return;
+    }
+
+    // 设置导出模态框的默认时间为当前筛选的时间
+    const timeFrom = document.getElementById('time-from').value;
+    const timeTill = document.getElementById('time-till').value;
+    document.getElementById('export-time-from').value = timeFrom;
+    document.getElementById('export-time-till').value = timeTill;
+
+    const modal = new bootstrap.Modal(document.getElementById('exportModal'));
+    modal.show();
+}
+
+// 全选/取消全选告警级别（导出模态框）
+function toggleAllSeverities(checkbox) {
+    const severityCheckboxes = document.querySelectorAll('.severity-checkbox');
+    severityCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+}
+
+// 全选/取消全选告警级别（主页筛选）
+function toggleAllMainSeverities(checkbox) {
+    const severityCheckboxes = document.querySelectorAll('.main-severity-checkbox');
+    severityCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+    updateSeverityDisplay();
+}
+
+// 更新告警级别显示文本
+function updateSeverityDisplay() {
+    const severityNames = {
+        '5': '灾难',
+        '4': '严重',
+        '3': '一般严重',
+        '2': '警告',
+        '1': '信息',
+        '0': '未分类'
+    };
+
+    const selectedSeverities = [];
+    for (let i = 0; i <= 5; i++) {
+        const checkbox = document.getElementById(`severity-${i}`);
+        if (checkbox && checkbox.checked) {
+            selectedSeverities.push(severityNames[i]);
+        }
+    }
+
+    const displayText = selectedSeverities.length === 0 ? '请选择级别' :
+                       selectedSeverities.length === 6 ? '全部级别' :
+                       selectedSeverities.join(', ');
+
+    document.getElementById('severity-display').textContent = displayText;
+
+    // 更新全选复选框状态
+    const allCheckbox = document.getElementById('severity-all');
+    allCheckbox.checked = selectedSeverities.length === 6;
+}
+
+// 导出告警
+async function exportAlerts() {
+    const configId = getCurrentConfigId();
+    const timeFrom = document.getElementById('export-time-from').value;
+    const timeTill = document.getElementById('export-time-till').value;
+    const recovered = document.getElementById('export-recovered').value;
+
+    // 收集选中的告警级别
+    const selectedSeverities = [];
+    for (let i = 0; i <= 5; i++) {
+        const checkbox = document.getElementById(`export-severity-${i}`);
+        if (checkbox && checkbox.checked) {
+            selectedSeverities.push(i);
+        }
+    }
+
+    // 验证至少选择一个级别
+    if (selectedSeverities.length === 0) {
+        alert('请至少选择一个告警级别');
+        return;
+    }
+
+    try {
+        // 创建导出任务
+        const response = await fetch('/api/alerts/export-tasks', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                zabbix_config_id: parseInt(configId),
+                time_from: timeFrom ? Math.floor(new Date(timeFrom).getTime() / 1000) : null,
+                time_till: timeTill ? Math.floor(new Date(timeTill).getTime() / 1000) : null,
+                severity: selectedSeverities,
+                recovered: recovered !== 'all' ? recovered : null
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || '创建导出任务失败');
+        }
+
+        const task = await response.json();
+
+        // 关闭导出模态框
+        bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
+
+        // 显示成功提示
+        alert('导出任务已创建，请在导出历史中查看进度');
+
+        // 如果导出历史模态框已打开，刷新列表
+        const historyModal = document.getElementById('exportHistoryModal');
+        if (historyModal.classList.contains('show')) {
+            loadExportHistory();
+        }
+    } catch (error) {
+        alert('导出失败: ' + error.message);
+    }
+}
+
+// 显示导出历史
+async function showExportHistory() {
+    const modal = new bootstrap.Modal(document.getElementById('exportHistoryModal'));
+    modal.show();
+    await loadExportHistory();
+}
+
+// 加载导出历史
+async function loadExportHistory() {
+    const tbody = document.getElementById('export-history-tbody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="10" class="text-center">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                加载中...
+            </td>
+        </tr>
+    `;
+
+    try {
+        const response = await fetch('/api/alerts/export-tasks', {
+            credentials: 'same-origin'
+        });
+
+        if (!response.ok) {
+            throw new Error('获取导出历史失败');
+        }
+
+        const tasks = await response.json();
+
+        if (tasks.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">暂无导出记录</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = tasks.map(task => {
+            const statusBadge = {
+                'pending': '<span class="badge bg-secondary">等待中</span>',
+                'processing': '<span class="badge bg-primary">处理中</span>',
+                'completed': '<span class="badge bg-success">已完成</span>',
+                'failed': '<span class="badge bg-danger">失败</span>'
+            }[task.status] || task.status;
+
+            const timeRange = task.time_from && task.time_till
+                ? `${formatTimestamp(task.time_from)} ~ ${formatTimestamp(task.time_till)}`
+                : '全部';
+
+            const severityText = task.severity || '全部';
+            const recoveredText = task.recovered === 'recovered' ? '已恢复' :
+                                 task.recovered === 'unrecovered' ? '未恢复' : '全部';
+
+            const downloadBtn = task.status === 'completed'
+                ? `<button class="btn btn-sm btn-success" onclick="downloadExportFile(${task.id})">
+                       <i class="bi bi-download"></i> 下载
+                   </button>`
+                : '';
+
+            const errorMsg = task.error_message
+                ? `<br><small class="text-danger">${task.error_message}</small>`
+                : '';
+
+            return `
+                <tr>
+                    <td>${task.id}</td>
+                    <td>${task.zabbix_config_name || '-'}</td>
+                    <td><small>${timeRange}</small></td>
+                    <td><small>${severityText}</small></td>
+                    <td>${recoveredText}</td>
+                    <td>${statusBadge}${errorMsg}</td>
+                    <td>${task.total_count}</td>
+                    <td><small>${formatDateTime(task.created_at)}</small></td>
+                    <td><small>${task.completed_at ? formatDateTime(task.completed_at) : '-'}</small></td>
+                    <td>${downloadBtn}</td>
+                </tr>
+            `;
+        }).join('');
+
+    } catch (error) {
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center text-danger">加载失败: ${error.message}</td></tr>`;
+    }
+}
+
+// 下载导出文件
+async function downloadExportFile(taskId) {
+    try {
+        window.location.href = `/api/alerts/export-tasks/${taskId}/download`;
+    } catch (error) {
+        alert('下载失败: ' + error.message);
+    }
+}
+
+// 格式化时间戳
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// 格式化日期时间
+function formatDateTime(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
+</script>
+{% endblock %}

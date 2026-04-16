@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Zabbix配置 - Zabbix Report Center{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-gear"></i> Zabbix配置</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#configModal">
+        <i class="bi bi-plus-circle"></i> 添加配置
+    </button>
+</div>
+
+<!-- 配置列表 -->
+<div class="card">
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>名称</th>
+                    <th>URL</th>
+                    <th>认证方式</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="config-table">
+                <tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 配置编辑模态框 -->
+<div class="modal fade" id="configModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="configModalTitle">添加Zabbix配置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="config-form">
+                    <input type="hidden" id="config-id">
+
+                    <div class="mb-3">
+                        <label class="form-label">配置名称</label>
+                        <input type="text" class="form-control" id="config-name" required placeholder="如：生产环境Zabbix">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Zabbix API地址</label>
+                        <input type="text" class="form-control" id="config-url" required placeholder="http://zabbix-server/api_jsonrpc.php">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">认证方式</label>
+                        <select class="form-select" id="config-auth-type" required>
+                            <option value="token">Token认证</option>
+                            <option value="password">账号密码认证</option>
+                        </select>
+                    </div>
+
+                    <div id="token-fields">
+                        <div class="mb-3">
+                            <label class="form-label">API Token</label>
+                            <input type="text" class="form-control" id="config-token" placeholder="输入Zabbix API Token">
+                        </div>
+                    </div>
+
+                    <div id="password-fields" class="d-none">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">用户名</label>
+                                    <input type="text" class="form-control" id="config-username" placeholder="Zabbix用户名">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">密码</label>
+                                    <input type="password" class="form-control" id="config-password" placeholder="Zabbix密码">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="config-is-active" checked>
+                        <label class="form-check-label" for="config-is-active">启用</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-info" id="test-config">测试连接</button>
+                <button type="button" class="btn btn-primary" id="save-config">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 切换认证方式
+    document.getElementById('config-auth-type').addEventListener('change', function() {
+        const tokenFields = document.getElementById('token-fields');
+        const passwordFields = document.getElementById('password-fields');
+
+        if (this.value === 'token') {
+            tokenFields.classList.remove('d-none');
+            passwordFields.classList.add('d-none');
+        } else {
+            tokenFields.classList.add('d-none');
+            passwordFields.classList.remove('d-none');
+        }
+    });
+
+    // 加载配置列表
+    async function loadConfigs() {
+        const response = await fetch('/api/zabbix-config');
+        const configs = await response.json();
+
+        const tbody = document.getElementById('config-table');
+        tbody.innerHTML = configs.map(c => `
+            <tr>
+                <td>${c.id}</td>
+                <td>${c.name}</td>
+                <td><small>${c.url}</small></td>
+                <td>
+                    <span class="badge bg-${c.auth_type === 'token' ? 'primary' : 'secondary'}">
+                        ${c.auth_type === 'token' ? 'Token' : '账号密码'}
+                    </span>
+                </td>
+                <td>
+                    ${c.is_active
+                        ? '<span class="badge bg-success">启用</span>'
+                        : '<span class="badge bg-secondary">禁用</span>'}
+                </td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-info test-conn" data-id="${c.id}" title="测试连接">
+                            <i class="bi bi-plug"></i>
+                        </button>
+                        <button class="btn btn-primary edit-config" data-id="${c.id}">编辑</button>
+                        <button class="btn btn-danger delete-config" data-id="${c.id}">删除</button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+
+        // 绑定事件
+        document.querySelectorAll('.test-conn').forEach(btn => {
+            btn.addEventListener('click', () => testConnection(parseInt(btn.dataset.id)));
+        });
+        document.querySelectorAll('.edit-config').forEach(btn => {
+            btn.addEventListener('click', () => editConfig(parseInt(btn.dataset.id)));
+        });
+        document.querySelectorAll('.delete-config').forEach(btn => {
+            btn.addEventListener('click', () => deleteConfig(parseInt(btn.dataset.id)));
+        });
+    }
+
+    // 测试连接
+    async function testConnection(configId) {
+        try {
+            const response = await fetch(`/api/zabbix-config/${configId}/test`);
+            const result = await response.json();
+
+            if (result.success) {
+                alert('连接成功！Zabbix版本: ' + result.version);
+            } else {
+                alert('连接失败: ' + result.error);
+            }
+        } catch (error) {
+            alert('测试失败: ' + error.message);
+        }
+    }
+
+    // 编辑配置
+    async function editConfig(configId) {
+        const response = await fetch(`/api/zabbix-config/${configId}`);
+        const config = await response.json();
+
+        document.getElementById('config-id').value = config.id;
+        document.getElementById('config-name').value = config.name;
+        document.getElementById('config-url').value = config.url;
+        document.getElementById('config-auth-type').value = config.auth_type;
+        document.getElementById('config-is-active').checked = config.is_active;
+
+        // 触发认证方式切换
+        document.getElementById('config-auth-type').dispatchEvent(new Event('change'));
+
+        document.getElementById('configModalTitle').textContent = '编辑Zabbix配置';
+        new bootstrap.Modal(document.getElementById('configModal')).show();
+    }
+
+    // 保存配置
+    document.getElementById('save-config').addEventListener('click', async function() {
+        const configId = document.getElementById('config-id').value;
+
+        const data = {
+            name: document.getElementById('config-name').value,
+            url: document.getElementById('config-url').value,
+            auth_type: document.getElementById('config-auth-type').value,
+            is_active: document.getElementById('config-is-active').checked
+        };
+
+        if (data.auth_type === 'token') {
+            data.token = document.getElementById('config-token').value;
+        } else {
+            data.username = document.getElementById('config-username').value;
+            data.password = document.getElementById('config-password').value;
+        }
+
+        const url = configId ? `/api/zabbix-config/${configId}` : '/api/zabbix-config';
+        const method = configId ? 'PUT' : 'POST';
+
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('configModal')).hide();
+                document.getElementById('config-form').reset();
+                document.getElementById('config-id').value = '';
+                document.getElementById('configModalTitle').textContent = '添加Zabbix配置';
+                loadConfigs();
+            } else {
+                const result = await response.json();
+                alert('保存失败: ' + result.detail);
+            }
+        } catch (error) {
+            alert('保存失败: ' + error.message);
+        }
+    });
+
+    // 测试当前配置
+    document.getElementById('test-config').addEventListener('click', async function() {
+        const configId = document.getElementById('config-id').value;
+        if (configId) {
+            await testConnection(parseInt(configId));
+        } else {
+            alert('请先保存配置后再测试');
+        }
+    });
+
+    // 删除配置
+    async function deleteConfig(configId) {
+        if (!confirm('确定要删除此配置吗？')) return;
+
+        try {
+            await fetch(`/api/zabbix-config/${configId}`, {
+                method: 'DELETE'
+            });
+            loadConfigs();
+        } catch (error) {
+            alert('删除失败: ' + error.message);
+        }
+    }
+
+    // 模态框关闭时重置表单
+    document.getElementById('configModal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('config-form').reset();
+        document.getElementById('config-id').value = '';
+        document.getElementById('configModalTitle').textContent = '添加Zabbix配置';
+        document.getElementById('token-fields').classList.remove('d-none');
+        document.getElementById('password-fields').classList.add('d-none');
+    });
+
+    // 初始化
+    loadConfigs();
+</script>
+{% endblock %}

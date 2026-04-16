@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}个人信息 - Zabbix Report Center{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-person"></i> 个人信息</h2>
+</div>
+
+<!-- 提示消息 -->
+<div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;">
+    <div id="toast" class="toast" role="alert">
+        <div class="toast-header">
+            <strong class="me-auto" id="toast-title">提示</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toast-body"></div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">基本信息</h5>
+            </div>
+            <div class="card-body">
+                <form id="profile-form">
+                    <div class="mb-3">
+                        <label class="form-label">用户名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="username" required>
+                        <div class="form-text">用户名用于登录，修改后需使用新用户名登录</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">邮箱 <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">角色</label>
+                        <input type="text" class="form-control" id="role" disabled>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i> 保存基本信息
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">修改密码</h5>
+            </div>
+            <div class="card-body">
+                <form id="password-form">
+                    <div class="mb-3">
+                        <label class="form-label">当前密码 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="current-password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">新密码 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="new-password" required>
+                        <div class="form-text">密码长度至少6位</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">确认新密码 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="confirm-password" required>
+                    </div>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="bi bi-key"></i> 修改密码
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">账户信息</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>用户ID:</strong> <span id="user-id"></span></p>
+                <p><strong>账户状态:</strong> <span id="user-status"></span></p>
+                <p><strong>注册时间:</strong> <span id="created-at"></span></p>
+                <hr>
+                <h6>Zabbix访问权限</h6>
+                <div id="zabbix-permissions">
+                    <div class="text-muted">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentUser = null;
+
+    // 显示提示消息
+    function showToast(title, message, type = 'info') {
+        const toast = document.getElementById('toast');
+        const toastTitle = document.getElementById('toast-title');
+        const toastBody = document.getElementById('toast-body');
+
+        toast.className = 'toast';
+        if (type === 'success') toast.classList.add('bg-success', 'text-white');
+        else if (type === 'error') toast.classList.add('bg-danger', 'text-white');
+        else toast.classList.add('bg-info', 'text-white');
+
+        toastTitle.textContent = title;
+        toastBody.textContent = message;
+
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+
+    // 加载用户信息
+    async function loadUserInfo() {
+        try {
+            const response = await fetch('/api/auth/me');
+            currentUser = await response.json();
+
+            document.getElementById('username').value = currentUser.username;
+            document.getElementById('email').value = currentUser.email;
+            document.getElementById('role').value = currentUser.is_admin ? '管理员' : '普通用户';
+            document.getElementById('user-id').textContent = currentUser.id;
+            document.getElementById('user-status').innerHTML = currentUser.is_active
+                ? '<span class="badge bg-success">启用</span>'
+                : '<span class="badge bg-danger">禁用</span>';
+            document.getElementById('created-at').textContent = new Date(currentUser.created_at).toLocaleString();
+
+            // 加载Zabbix权限
+            await loadZabbixPermissions();
+        } catch (error) {
+            showToast('错误', '加载用户信息失败: ' + error.message, 'error');
+        }
+    }
+
+    // 加载Zabbix权限
+    async function loadZabbixPermissions() {
+        try {
+            const response = await fetch('/api/zabbix-config');
+            const allConfigs = await response.json();
+
+            const container = document.getElementById('zabbix-permissions');
+
+            if (currentUser.is_admin) {
+                container.innerHTML = '<span class="badge bg-warning text-dark">全部配置</span>';
+            } else if (currentUser.allowed_zabbix_ids && currentUser.allowed_zabbix_ids.length > 0) {
+                const allowedConfigs = allConfigs.filter(c => currentUser.allowed_zabbix_ids.includes(c.id));
+                if (allowedConfigs.length > 0) {
+                    container.innerHTML = allowedConfigs.map(c =>
+                        `<span class="badge bg-info me-1 mb-1">${c.name}</span>`
+                    ).join('');
+                } else {
+                    container.innerHTML = '<span class="text-muted">无权限</span>';
+                }
+            } else {
+                container.innerHTML = '<span class="text-muted">无权限</span>';
+            }
+        } catch (error) {
+            console.error('加载Zabbix权限失败:', error);
+        }
+    }
+
+    // 保存基本信息
+    document.getElementById('profile-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const username = document.getElementById('username').value.trim();
+        const email = document.getElementById('email').value.trim();
+
+        if (!username) {
+            showToast('错误', '请输入用户名', 'error');
+            return;
+        }
+        if (!email) {
+            showToast('错误', '请输入邮箱', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/me', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: username,
+                    email: email
+                })
+            });
+
+            if (response.ok) {
+                showToast('成功', '基本信息保存成功', 'success');
+                loadUserInfo();
+            } else {
+                const result = await response.json();
+                showToast('错误', '保存失败: ' + result.detail, 'error');
+            }
+        } catch (error) {
+            showToast('错误', '保存失败: ' + error.message, 'error');
+        }
+    });
+
+    // 修改密码
+    document.getElementById('password-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const currentPassword = document.getElementById('current-password').value;
+        const newPassword = document.getElementById('new-password').value;
+        const confirmPassword = document.getElementById('confirm-password').value;
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            showToast('错误', '请填写所有密码字段', 'error');
+            return;
+        }
+
+        if (newPassword.length < 6) {
+            showToast('错误', '新密码长度至少6位', 'error');
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            showToast('错误', '两次输入的新密码不一致', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword
+                })
+            });
+
+            if (response.ok) {
+                showToast('成功', '密码修改成功', 'success');
+                document.getElementById('password-form').reset();
+            } else {
+                const result = await response.json();
+                showToast('错误', '修改失败: ' + result.detail, 'error');
+            }
+        } catch (error) {
+            showToast('错误', '修改失败: ' + error.message, 'error');
+        }
+    });
+
+    // 初始化
+    loadUserInfo();
+</script>
+{% endblock %}

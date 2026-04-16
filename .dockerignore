@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Local files
+.env
+.env.local
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Exports
+exports/
+*.xlsx
+
+# Cache
+.cache/
+.pytest_cache/
+
+# Documentation
+*.md
+docs.html
+INSTALL.html
+
+# Test files
+test_*.py
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,1172 @@
+{% extends "base.html" %}
+
+{% block title %}监控信息 - Zabbix Report Center{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-activity"></i> 监控信息</h2>
+    <div class="d-flex gap-2">
+        <button class="btn btn-success" id="export-btn" onclick="createExportTask()">
+            <span id="export-btn-text"><i class="bi bi-download"></i> 导出Excel</span>
+            <span id="export-btn-loading" class="d-none">
+                <span class="spinner-border spinner-border-sm" role="status"></span> 提交中...
+            </span>
+        </button>
+        <button class="btn btn-secondary" onclick="showExportHistory()">
+            <i class="bi bi-clock-history"></i> 导出记录
+        </button>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#filterModal" onclick="openCreateModal()">
+            <i class="bi bi-plus-circle"></i> 新建筛选配置
+        </button>
+    </div>
+</div>
+
+<!-- 提示消息 -->
+<div id="toast-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;">
+    <div id="toast" class="toast" role="alert">
+        <div class="toast-header">
+            <strong class="me-auto" id="toast-title">提示</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toast-body"></div>
+    </div>
+</div>
+
+<!-- 筛选配置列表 -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">筛选配置</h5>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="select-all-filters">
+            <label class="form-check-label" for="select-all-filters">全选</label>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row" id="filter-cards">
+            <div class="text-center text-muted py-4">加载中...</div>
+        </div>
+    </div>
+</div>
+
+<!-- 查看数据区域 -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">监控数据</h5>
+    </div>
+    <div class="card-body">
+        <div id="data-placeholder" class="text-center text-muted py-4">
+            请选择筛选配置查看数据
+        </div>
+        <div id="data-content" class="d-none">
+            <div id="monitor-tables"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 新建/编辑筛选配置模态框 -->
+<div class="modal fade" id="filterModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="filterModalTitle">新建筛选配置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="filter-form">
+                    <input type="hidden" id="filter-id">
+
+                    <div class="mb-3">
+                        <label class="form-label">配置名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="filter-name" required placeholder="如：CPU使用率">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">描述</label>
+                        <textarea class="form-control" id="filter-description" rows="2"></textarea>
+                    </div>
+
+                    <!-- 匹配模式选择 -->
+                    <div class="mb-3">
+                        <label class="form-label">监控项匹配方式</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="use-regex">
+                            <label class="form-check-label" for="use-regex">
+                                使用正则表达式匹配
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 正则表达式输入框（勾选正则时显示） -->
+                    <div class="mb-3" id="regex-container" style="display: none;">
+                        <label class="form-label">正则表达式 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="regex-pattern" placeholder="例如：CPU.*utilization|Memory.*usage">
+                        <div class="form-text">输入正则表达式来匹配监控项名称</div>
+                    </div>
+
+                    <!-- 监控项列表（不勾选正则时显示） -->
+                    <div class="mb-3" id="patterns-container-wrapper">
+                        <label class="form-label">监控项列表 <span class="text-danger">*</span></label>
+                        <div id="patterns-container">
+                            <!-- 动态添加的监控项 -->
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="add-pattern">
+                            <i class="bi bi-plus"></i> 添加监控项
+                        </button>
+                        <div class="form-text">
+                            添加要匹配的监控项。<br>
+                            <strong>精确匹配</strong>：完全匹配监控项名称<br>
+                            <strong>模糊匹配</strong>：支持通配符 <code>*</code>（匹配任意字符）和 <code>?</code>（匹配单个字符）<br>
+                            示例：<code>CPU*time</code> 可匹配 "CPU idle time"、"CPU user time" 等
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">历史数据类型</label>
+                                <select class="form-select" id="history-type">
+                                    <option value="0">数值(浮点)</option>
+                                    <option value="1">字符</option>
+                                    <option value="2">日志</option>
+                                    <option value="3">数值(无符号)</option>
+                                    <option value="4">文本</option>
+                                </select>
+                                <div class="form-text">指定Zabbix历史数据类型，大部分性能指标使用数值(浮点)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">网络流量</label>
+                                <select class="form-select" id="is-network">
+                                    <option value="false">否</option>
+                                    <option value="true">是(自动转换单位)</option>
+                                </select>
+                                <div class="form-text">选"是"时自动将字节转换为KB/MB/GB，适用于网络流量和磁盘IO</div>
+                            </div>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <label class="form-label"><i class="bi bi-gear"></i> 应用的Zabbix配置 <span class="text-danger">*</span></label>
+                        <p class="text-muted small">勾选要应用此筛选配置的Zabbix配置（至少选择一个）</p>
+                        <div id="zabbix-config-checkboxes" class="border rounded p-2" style="max-height: 120px; overflow-y: auto;">
+                            加载中...
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="save-filter">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 导出确认对话框 -->
+<div class="modal fade" id="exportConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">导出选项</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>是否在导出的Excel中包含"设备概览"工作簿？</p>
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>设备概览</strong>：包含所有在线设备的基本信息（主机名、IP、所属群组等）
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-outline-primary" onclick="executeExport(false)">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> 不包含
+                </button>
+                <button type="button" class="btn btn-primary" onclick="executeExport(true)">
+                    <i class="bi bi-file-earmark-spreadsheet-fill"></i> 包含设备概览
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 导出历史模态框 -->
+<div class="modal fade" id="exportHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">导出记录</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>创建时间</th>
+                            <th>配置名称</th>
+                            <th>筛选配置</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="export-history-table">
+                        <tr><td colspan="5" class="text-center text-muted">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let filters = [];
+    let exportTasks = [];
+    // 使用 base.html 中的 globalZabbixConfigs 变量
+
+    // 显示提示消息
+    function showToast(title, message, type = 'info') {
+        const toast = document.getElementById('toast');
+        const toastTitle = document.getElementById('toast-title');
+        const toastBody = document.getElementById('toast-body');
+
+        toast.className = 'toast';
+        if (type === 'success') toast.classList.add('bg-success', 'text-white');
+        else if (type === 'error') toast.classList.add('bg-danger', 'text-white');
+        else toast.classList.add('bg-info', 'text-white');
+
+        toastTitle.textContent = title;
+        toastBody.textContent = message;
+
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+
+    // 全选/取消全选
+    document.getElementById('select-all-filters').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.filter-checkbox');
+        checkboxes.forEach(cb => cb.checked = this.checked);
+    });
+
+    // 渲染Zabbix配置复选框
+    function renderZabbixConfigCheckboxes(selectedIds = []) {
+        const container = document.getElementById('zabbix-config-checkboxes');
+        console.log('Rendering checkboxes, globalZabbixConfigs:', globalZabbixConfigs, 'selectedIds:', selectedIds);
+
+        if (!globalZabbixConfigs || globalZabbixConfigs.length === 0) {
+            container.innerHTML = '<div class="text-muted small">暂无Zabbix配置</div>';
+            return;
+        }
+
+        container.innerHTML = globalZabbixConfigs.map(z => `
+            <div class="form-check form-check-inline">
+                <input class="form-check-input zabbix-config-checkbox" type="checkbox" value="${z.id}" id="zabbix-cb-${z.id}" ${selectedIds.includes(z.id) ? 'checked' : ''}>
+                <label class="form-check-label" for="zabbix-cb-${z.id}">${z.name}</label>
+            </div>
+        `).join('');
+    }
+
+    // 打开新建模态框
+    function openCreateModal() {
+        document.getElementById('filter-id').value = '';
+        document.getElementById('filter-name').value = '';
+        document.getElementById('filter-description').value = '';
+        document.getElementById('history-type').value = '0';
+        document.getElementById('use-regex').checked = false;
+        document.getElementById('is-network').value = 'false';
+        document.getElementById('filterModalTitle').textContent = '新建筛选配置';
+        document.getElementById('regex-pattern').value = '';
+
+        // 切换显示模式
+        toggleMatchMode();
+
+        // 重置监控项列表
+        document.getElementById('patterns-container').innerHTML = '';
+        addPatternItem();
+
+        // 默认选中当前Zabbix配置
+        const currentConfigId = parseInt(getSelectedZabbixConfigId());
+        renderZabbixConfigCheckboxes(currentConfigId ? [currentConfigId] : []);
+    }
+
+    // 切换匹配模式显示
+    function toggleMatchMode() {
+        const useRegex = document.getElementById('use-regex').checked;
+        document.getElementById('regex-container').style.display = useRegex ? 'block' : 'none';
+        document.getElementById('patterns-container-wrapper').style.display = useRegex ? 'none' : 'block';
+    }
+
+    // 添加一个监控项
+    function addPatternItem(pattern = '', matchType = 'exact') {
+        const container = document.getElementById('patterns-container');
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2';
+        div.innerHTML = `
+            <input type="text" class="form-control pattern-input" placeholder="监控项名称" value="${pattern}">
+            <select class="form-select match-type-select" style="max-width: 150px;">
+                <option value="exact" ${matchType === 'exact' ? 'selected' : ''}>精确匹配</option>
+                <option value="fuzzy" ${matchType === 'fuzzy' ? 'selected' : ''}>模糊匹配</option>
+            </select>
+            <button type="button" class="btn btn-outline-secondary remove-pattern">删除</button>
+        `;
+        container.appendChild(div);
+    }
+
+    // 打开编辑模态框
+    function openEditModal(filterId) {
+        const filter = filters.find(f => f.id === filterId);
+        if (!filter) {
+            console.error('Filter not found:', filterId);
+            return;
+        }
+
+        console.log('Editing filter:', filter);
+
+        document.getElementById('filter-id').value = filter.id;
+        document.getElementById('filter-name').value = filter.name;
+        document.getElementById('filter-description').value = filter.description || '';
+        document.getElementById('history-type').value = filter.history_type.toString();
+        document.getElementById('use-regex').checked = filter.use_regex || false;
+        document.getElementById('is-network').value = filter.is_network.toString();
+        document.getElementById('filterModalTitle').textContent = '编辑筛选配置';
+
+        // 切换显示模式
+        toggleMatchMode();
+
+        if (filter.use_regex) {
+            // 正则表达式模式
+            document.getElementById('regex-pattern').value = filter.regex_pattern || '';
+        } else {
+            // 列表模式
+            const container = document.getElementById('patterns-container');
+            container.innerHTML = '';
+
+            if (filter.item_patterns && filter.item_patterns.length > 0) {
+                filter.item_patterns.forEach(item => {
+                    if (typeof item === 'string') {
+                        // 兼容旧数据格式
+                        addPatternItem(item, 'exact');
+                    } else {
+                        // 新数据格式
+                        addPatternItem(item.pattern, item.match_type);
+                    }
+                });
+            } else {
+                addPatternItem();
+            }
+        }
+
+        // 检查关联的配置是否有效
+        const filterConfigIds = filter.zabbix_config_ids || [];
+        const validConfigIds = globalZabbixConfigs.map(c => c.id);
+        const validIds = filterConfigIds.filter(id => validConfigIds.includes(id));
+        const invalidCount = filterConfigIds.length - validIds.length;
+
+        if (invalidCount > 0) {
+            // 显示警告提示
+            showToast('警告', `此筛选配置关联了 ${invalidCount} 个已删除的 Zabbix 配置`, 'warning');
+        }
+
+        // 渲染复选框，只选中有效的配置ID
+        renderZabbixConfigCheckboxes(validIds);
+
+        new bootstrap.Modal(document.getElementById('filterModal')).show();
+    }
+
+    // 加载筛选配置（根据当前选择的Zabbix配置过滤）
+    async function loadFilters() {
+        const configId = getSelectedZabbixConfigId();
+        let url = '/api/monitor/filters';
+
+        // 如果选择了具体的配置，传递参数进行过滤
+        if (configId && configId !== 'unconfigured') {
+            url += `?zabbix_config_id=${configId}`;
+        }
+        // 添加时间戳防止缓存
+        url += (configId && configId !== 'unconfigured' ? '&' : '?') + `_t=${Date.now()}`;
+
+        console.log('Loading filters for zabbix_config_id:', configId);
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('Failed to load filters');
+            }
+            let allFilters = await response.json();
+            console.log('Loaded filters:', allFilters);
+
+            // 根据选择的配置过滤
+            if (!configId || configId === '') {
+                // 未选择配置时，不显示任何筛选
+                filters = [];
+            } else if (configId === 'unconfigured') {
+                // 选择"未配置"时，只显示未配置的筛选
+                filters = allFilters.filter(f => {
+                    // 没有关联任何配置
+                    if (!f.zabbix_config_ids || f.zabbix_config_ids.length === 0) {
+                        return true;
+                    }
+                    // 所有关联的配置都已被删除（用户无权访问）
+                    const accessibleConfigs = f.zabbix_config_ids
+                        .map(id => globalZabbixConfigs.find(c => c.id === id))
+                        .filter(z => z !== undefined);
+                    return accessibleConfigs.length === 0;
+                });
+            } else {
+                // 选择了具体配置，显示该配置的筛选
+                filters = allFilters;
+            }
+
+            console.log('Filtered filters:', filters);
+        } catch (error) {
+            console.error('Failed to load filters:', error);
+            filters = [];
+        }
+
+        const container = document.getElementById('filter-cards');
+        if (filters.length === 0) {
+            if (!configId || configId === '') {
+                container.innerHTML = '<div class="text-center text-muted py-4">请在左上角选择 Zabbix 配置</div>';
+            } else if (configId === 'unconfigured') {
+                container.innerHTML = '<div class="text-center text-muted py-4">暂无未配置的筛选配置</div>';
+            } else {
+                container.innerHTML = '<div class="text-center text-muted py-4">暂无筛选配置，请先创建</div>';
+            }
+            return;
+        }
+
+        container.innerHTML = filters.map(f => {
+            // 检查是否有有效的Zabbix配置
+            let hasValidConfig = false;
+            let zabbixBadge = '';
+
+            if (f.zabbix_config_ids && f.zabbix_config_ids.length > 0) {
+                // 过滤出用户有权限且存在的配置
+                const accessibleConfigs = f.zabbix_config_ids
+                    .map(id => globalZabbixConfigs.find(c => c.id === id))
+                    .filter(z => z !== undefined);
+
+                if (accessibleConfigs.length > 0) {
+                    hasValidConfig = true;
+                    const names = accessibleConfigs.map(z => z.name).join(', ');
+                    zabbixBadge = `<span class="badge bg-info me-1" title="${names}">应用到 ${accessibleConfigs.length} 个配置</span>`;
+                } else {
+                    // 没有有效配置
+                    zabbixBadge = `<span class="badge bg-secondary me-1">无可用配置</span>`;
+                }
+            } else {
+                // 没有关联任何配置
+                zabbixBadge = `<span class="badge bg-secondary me-1">无可用配置</span>`;
+            }
+
+            // 如果没有有效配置，卡片变灰且禁用查看按钮
+            const cardClass = hasValidConfig ? 'card h-100' : 'card h-100 bg-light opacity-75';
+            const viewBtnDisabled = hasValidConfig ? '' : 'disabled';
+
+            // 处理监控项显示（兼容新旧格式）
+            let itemPatternsText = '';
+            if (f.use_regex) {
+                // 正则表达式模式
+                itemPatternsText = f.regex_pattern || '未设置';
+            } else {
+                // 列表模式
+                if (Array.isArray(f.item_patterns)) {
+                    if (f.item_patterns.length > 0) {
+                        // 检查是新格式还是旧格式
+                        if (typeof f.item_patterns[0] === 'string') {
+                            // 旧格式：字符串数组
+                            itemPatternsText = f.item_patterns.join(', ');
+                        } else {
+                            // 新格式：对象数组
+                            itemPatternsText = f.item_patterns.map(p => p.pattern).join(', ');
+                        }
+                    } else {
+                        itemPatternsText = '未设置';
+                    }
+                } else {
+                    itemPatternsText = '未设置';
+                }
+            }
+
+            return `
+            <div class="col-md-3 mb-3">
+                <div class="${cardClass}">
+                    <div class="card-body">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input filter-checkbox" type="checkbox" value="${f.id}" id="check-${f.id}" ${hasValidConfig ? '' : 'disabled'}>
+                            <label class="form-check-label fw-bold" for="check-${f.id}">${f.name}</label>
+                        </div>
+                        <p class="card-text small text-muted mb-1">${f.description || '无描述'}</p>
+                        <p class="card-text small text-truncate" title="${itemPatternsText}">
+                            <strong>监控项:</strong> ${itemPatternsText}
+                        </p>
+                        <p class="card-text small">${zabbixBadge}</p>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-primary view-data" data-id="${f.id}" ${viewBtnDisabled}>查看</button>
+                            <button class="btn btn-secondary edit-filter" data-id="${f.id}">编辑</button>
+                            <button class="btn btn-danger delete-filter" data-id="${f.id}">删除</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `}).join('');
+
+        // 绑定事件
+        document.querySelectorAll('.view-data').forEach(btn => {
+            btn.addEventListener('click', () => viewData(parseInt(btn.dataset.id)));
+        });
+        document.querySelectorAll('.edit-filter').forEach(btn => {
+            btn.addEventListener('click', () => openEditModal(parseInt(btn.dataset.id)));
+        });
+        document.querySelectorAll('.delete-filter').forEach(btn => {
+            btn.addEventListener('click', () => deleteFilter(parseInt(btn.dataset.id)));
+        });
+    }
+
+    // 监听正则表达式复选框变化
+    document.getElementById('use-regex').addEventListener('change', toggleMatchMode);
+
+    // 添加监控项模式
+    document.getElementById('add-pattern').addEventListener('click', function() {
+        addPatternItem();
+    });
+
+    // 删除监控项模式
+    document.getElementById('patterns-container').addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-pattern')) {
+            const inputs = document.querySelectorAll('.pattern-input');
+            if (inputs.length > 1) {
+                e.target.closest('.input-group').remove();
+            } else {
+                showToast('提示', '至少需要保留一个监控项', 'warning');
+            }
+        }
+    });
+
+    // 保存筛选配置
+    document.getElementById('save-filter').addEventListener('click', async function() {
+        // 验证配置名称
+        const name = document.getElementById('filter-name').value.trim();
+        if (!name) {
+            showToast('错误', '请输入配置名称', 'error');
+            return;
+        }
+
+        const useRegex = document.getElementById('use-regex').checked;
+        let data = {
+            name: name,
+            description: document.getElementById('filter-description').value,
+            history_type: parseInt(document.getElementById('history-type').value),
+            use_regex: useRegex,
+            is_network: document.getElementById('is-network').value === 'true',
+        };
+
+        if (useRegex) {
+            // 正则表达式模式
+            const regexPattern = document.getElementById('regex-pattern').value.trim();
+            if (!regexPattern) {
+                showToast('错误', '请输入正则表达式', 'error');
+                return;
+            }
+            data.regex_pattern = regexPattern;
+            data.item_patterns = null;
+        } else {
+            // 列表模式
+            const patternInputs = document.querySelectorAll('.pattern-input');
+            const matchTypeSelects = document.querySelectorAll('.match-type-select');
+            const patterns = [];
+
+            for (let i = 0; i < patternInputs.length; i++) {
+                const pattern = patternInputs[i].value.trim();
+                if (pattern) {
+                    patterns.push({
+                        pattern: pattern,
+                        match_type: matchTypeSelects[i].value
+                    });
+                }
+            }
+
+            if (patterns.length === 0) {
+                showToast('错误', '请至少添加一个监控项', 'error');
+                return;
+            }
+
+            data.item_patterns = patterns;
+            data.regex_pattern = null;
+        }
+
+        // 获取选中的Zabbix配置
+        const zabbixConfigIds = Array.from(document.querySelectorAll('.zabbix-config-checkbox:checked'))
+            .map(cb => parseInt(cb.value));
+
+        console.log('Selected zabbix_config_ids:', zabbixConfigIds);
+
+        if (zabbixConfigIds.length === 0) {
+            showToast('错误', '请至少选择一个Zabbix配置', 'error');
+            return;
+        }
+
+        data.zabbix_config_ids = zabbixConfigIds;
+
+        const filterId = document.getElementById('filter-id').value;
+        const url = filterId ? `/api/monitor/filters/${filterId}` : '/api/monitor/filters';
+        const method = filterId ? 'PUT' : 'POST';
+
+        console.log('Sending data:', JSON.stringify(data));
+
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            console.log('Response status:', response.status);
+            const result = await response.json();
+            console.log('Response data:', result);
+
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('filterModal')).hide();
+                loadFilters();
+                showToast('成功', '筛选配置保存成功', 'success');
+            } else {
+                showToast('错误', '保存失败: ' + result.detail, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('错误', '保存失败: ' + error.message, 'error');
+        }
+    });
+
+    // 查看数据（使用流式接口）
+    let allMonitorData = [];
+    let monitorDisplayCount = 50;
+    const MONITOR_PAGE_SIZE = 50;
+
+    // 排序状态
+    let sortColumn = null;
+    let sortDirection = 'asc'; // 'asc' 或 'desc'
+
+    // 排序函数
+    function sortMonitorData(column) {
+        if (sortColumn === column) {
+            // 点击同一列，切换排序方向
+            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            // 点击新列，默认升序
+            sortColumn = column;
+            sortDirection = 'asc';
+        }
+
+        // 执行排序
+        allMonitorData.sort((a, b) => {
+            let valA = a[column];
+            let valB = b[column];
+
+            // 数值列（当前值、最大值、最小值、平均值）
+            const numericColumns = ['current', 'max', 'min', 'avg'];
+
+            if (numericColumns.includes(column)) {
+                // 提取数值部分进行比较
+                valA = parseFloat(valA) || 0;
+                valB = parseFloat(valB) || 0;
+            } else {
+                // 字符串列，转为小写比较
+                valA = String(valA || '').toLowerCase();
+                valB = String(valB || '').toLowerCase();
+            }
+
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        // 重新渲染
+        renderMonitorData();
+        updateSortIndicators();
+    }
+
+    // 更新排序指示器
+    function updateSortIndicators() {
+        document.querySelectorAll('.sortable-th').forEach(th => {
+            th.classList.remove('sort-asc', 'sort-desc');
+            const icon = th.querySelector('.sort-icon');
+            if (icon) {
+                icon.className = 'sort-icon bi';
+            }
+        });
+
+        if (sortColumn) {
+            const th = document.querySelector(`.sortable-th[data-column="${sortColumn}"]`);
+            if (th) {
+                th.classList.add(sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+                const icon = th.querySelector('.sort-icon');
+                if (icon) {
+                    icon.className = 'sort-icon bi ' + (sortDirection === 'asc' ? 'bi-caret-up-fill' : 'bi-caret-down-fill');
+                }
+            }
+        }
+    }
+
+    async function viewData(filterId) {
+        const configId = getSelectedZabbixConfigId();
+        if (!configId) {
+            showToast('提示', '请在左上角选择Zabbix配置', 'error');
+            return;
+        }
+
+        const placeholder = document.getElementById('data-placeholder');
+        const content = document.getElementById('data-content');
+        const tables = document.getElementById('monitor-tables');
+
+        // 重置数据
+        allMonitorData = [];
+        monitorDisplayCount = MONITOR_PAGE_SIZE;
+        sortColumn = null;
+        sortDirection = 'asc';
+
+        // 显示加载进度
+        placeholder.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <div id="load-progress">正在初始化...</div>
+                <div class="progress mt-3" style="height: 25px;">
+                    <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                         role="progressbar" style="width: 0%">0%</div>
+                </div>
+            </div>
+        `;
+        placeholder.classList.remove('d-none');
+        content.classList.add('d-none');
+
+        try {
+            const filter = filters.find(f => f.id === filterId);
+            let totalHosts = 0;
+            let processedHosts = 0;
+
+            // 初始化表格
+            tables.innerHTML = `
+                <h5>${filter.name}</h5>
+                <style>
+                    .sortable-th {
+                        cursor: pointer;
+                        user-select: none;
+                        white-space: nowrap;
+                    }
+                    .sortable-th:hover {
+                        background-color: #f1f5f9;
+                    }
+                    .sort-icon {
+                        margin-left: 4px;
+                        font-size: 0.75rem;
+                        opacity: 0.3;
+                    }
+                    .sortable-th.sort-asc .sort-icon,
+                    .sortable-th.sort-desc .sort-icon {
+                        opacity: 1;
+                    }
+                </style>
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">序号</th>
+                            <th class="sortable-th" data-column="groups" onclick="sortMonitorData('groups')">所属群组 <i class="sort-icon bi"></i></th>
+                            <th class="sortable-th" data-column="hostname" onclick="sortMonitorData('hostname')">设备名 <i class="sort-icon bi"></i></th>
+                            <th class="sortable-th" data-column="ip" onclick="sortMonitorData('ip')">IP地址 <i class="sort-icon bi"></i></th>
+                            <th class="sortable-th" data-column="item_name" onclick="sortMonitorData('item_name')">监控项 <i class="sort-icon bi"></i></th>
+                            <th class="sortable-th" data-column="current" onclick="sortMonitorData('current')">当前值 <i class="sort-icon bi"></i></th>
+                            <th class="sortable-th" data-column="max" onclick="sortMonitorData('max')">最大值 <i class="sort-icon bi"></i></th>
+                            <th class="sortable-th" data-column="min" onclick="sortMonitorData('min')">最小值 <i class="sort-icon bi"></i></th>
+                            <th class="sortable-th" data-column="avg" onclick="sortMonitorData('avg')">平均值 <i class="sort-icon bi"></i></th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-tbody">
+                    </tbody>
+                </table>
+                <div class="text-center mt-3" id="monitor-load-more-container" style="display: none;">
+                    <button class="btn btn-outline-primary" onclick="loadMoreMonitorData()">
+                        <i class="bi bi-arrow-down-circle"></i> 加载更多
+                    </button>
+                </div>
+            `;
+
+            const tbody = document.getElementById('data-tbody');
+            const progressBar = document.getElementById('progress-bar');
+            const loadProgress = document.getElementById('load-progress');
+
+            // 使用 EventSource 接收流式数据
+            const response = await fetch('/api/monitor/data-stream', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    filter_ids: [filterId],
+                    zabbix_config_id: parseInt(configId),
+                    time_range: 86400
+                })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // 保留不完整的行
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.substring(6);
+                        try {
+                            const event = JSON.parse(jsonStr);
+
+                            if (event.type === 'init') {
+                                totalHosts = event.total_hosts;
+                                loadProgress.textContent = `准备查询 ${totalHosts} 台设备...`;
+                            } else if (event.type === 'filter_start') {
+                                loadProgress.textContent = `正在查询 ${event.filter_name}...`;
+                            } else if (event.type === 'data') {
+                                // 接收到数据，保存到数组
+                                const rows = event.rows;
+                                allMonitorData.push(...rows);
+
+                                // 渲染当前显示的数据
+                                renderMonitorData();
+
+                                // 显示数据区域
+                                placeholder.classList.add('d-none');
+                                content.classList.remove('d-none');
+                            } else if (event.type === 'progress') {
+                                processedHosts = event.processed;
+                                const progress = event.progress;
+                                progressBar.style.width = progress + '%';
+                                progressBar.textContent = progress + '%';
+                                loadProgress.textContent = `正在查询 ${event.filter_name}... (${processedHosts}/${totalHosts})`;
+                            } else if (event.type === 'filter_complete') {
+                                loadProgress.textContent = `${event.filter_name} 查询完成`;
+                            } else if (event.type === 'complete') {
+                                placeholder.classList.add('d-none');
+                                content.classList.remove('d-none');
+
+                                if (allMonitorData.length === 0) {
+                                    tables.innerHTML = '<div class="text-center text-muted py-4">暂无数据</div>';
+                                } else {
+                                    // 最终渲染所有数据
+                                    renderMonitorData();
+
+                                    // 在表格上方显示加载完成提示
+                                    const completeTip = document.createElement('div');
+                                    completeTip.className = 'alert alert-success alert-dismissible fade show mb-3';
+                                    completeTip.innerHTML = `
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        数据加载完成！共查询 ${totalHosts} 台设备，获取到 ${allMonitorData.length} 条监控数据
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    `;
+                                    tables.insertBefore(completeTip, tables.firstChild);
+
+                                    // 3秒后自动关闭提示
+                                    setTimeout(() => {
+                                        completeTip.classList.remove('show');
+                                        setTimeout(() => completeTip.remove(), 150);
+                                    }, 3000);
+                                }
+                            } else if (event.type === 'error') {
+                                throw new Error(event.message);
+                            }
+                        } catch (e) {
+                            console.error('解析事件失败:', e, jsonStr);
+                        }
+                    }
+                }
+            }
+
+        } catch (error) {
+            placeholder.innerHTML = `<div class="text-center text-danger">加载失败: ${error.message}</div>`;
+            placeholder.classList.remove('d-none');
+        }
+    }
+
+    // 渲染监控数据
+    function renderMonitorData() {
+        const tbody = document.getElementById('data-tbody');
+        const loadMoreContainer = document.getElementById('monitor-load-more-container');
+
+        if (!tbody) return;
+
+        // 只显示前 monitorDisplayCount 条
+        const dataToShow = allMonitorData.slice(0, monitorDisplayCount);
+        tbody.innerHTML = dataToShow.map((row, index) => `
+            <tr>
+                <td class="text-center">${index + 1}</td>
+                <td>${row.groups}</td>
+                <td>${row.hostname}</td>
+                <td>${row.ip}</td>
+                <td>${row.item_name}</td>
+                <td>${row.current}</td>
+                <td>${row.max}</td>
+                <td>${row.min}</td>
+                <td>${row.avg}</td>
+            </tr>
+        `).join('');
+
+        // 显示或隐藏"加载更多"按钮
+        if (loadMoreContainer) {
+            if (monitorDisplayCount < allMonitorData.length) {
+                loadMoreContainer.style.display = 'block';
+            } else {
+                loadMoreContainer.style.display = 'none';
+            }
+        }
+    }
+
+    // 加载更多监控数据
+    function loadMoreMonitorData() {
+        monitorDisplayCount += MONITOR_PAGE_SIZE;
+        renderMonitorData();
+    }
+
+    // 创建导出任务
+    async function createExportTask() {
+        const configId = getSelectedZabbixConfigId();
+        if (!configId) {
+            showToast('提示', '请在左上角选择Zabbix配置', 'error');
+            return;
+        }
+
+        // 获取勾选的筛选配置
+        const checkedIds = Array.from(document.querySelectorAll('.filter-checkbox:checked'))
+            .map(cb => parseInt(cb.value));
+
+        if (checkedIds.length === 0) {
+            showToast('提示', '请勾选要导出的筛选配置', 'error');
+            return;
+        }
+
+        // 显示确认对话框，让用户选择是否包含设备概览
+        new bootstrap.Modal(document.getElementById('exportConfirmModal')).show();
+    }
+
+    // 执行导出任务
+    async function executeExport(includeDeviceOverview) {
+        // 关闭确认对话框
+        bootstrap.Modal.getInstance(document.getElementById('exportConfirmModal')).hide();
+
+        const configId = getSelectedZabbixConfigId();
+        const checkedIds = Array.from(document.querySelectorAll('.filter-checkbox:checked'))
+            .map(cb => parseInt(cb.value));
+
+        // 显示加载状态
+        const btn = document.getElementById('export-btn');
+        const btnText = document.getElementById('export-btn-text');
+        const btnLoading = document.getElementById('export-btn-loading');
+        btn.disabled = true;
+        btnText.classList.add('d-none');
+        btnLoading.classList.remove('d-none');
+
+        try {
+            const response = await fetch('/api/monitor/export', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    filter_ids: checkedIds,
+                    zabbix_config_id: parseInt(configId),
+                    include_device_overview: includeDeviceOverview
+                })
+            });
+
+            if (response.ok) {
+                const task = await response.json();
+                showToast('成功', '导出任务已创建，请在导出记录中查看进度', 'success');
+                // 开始轮询任务状态
+                pollExportTask(task.id);
+            } else {
+                const result = await response.json();
+                showToast('错误', '创建导出任务失败: ' + result.detail, 'error');
+            }
+        } catch (error) {
+            showToast('错误', '创建导出任务失败: ' + error.message, 'error');
+        } finally {
+            // 恢复按钮状态
+            btn.disabled = false;
+            btnText.classList.remove('d-none');
+            btnLoading.classList.add('d-none');
+        }
+    }
+
+    // 轮询导出任务状态
+    async function pollExportTask(taskId) {
+        const checkStatus = async () => {
+            try {
+                const response = await fetch(`/api/monitor/export/tasks/${taskId}`);
+                if (!response.ok) return;
+
+                const task = await response.json();
+
+                if (task.status === 'completed') {
+                    showToast('完成', '导出完成，可前往导出记录下载', 'success');
+                } else if (task.status === 'failed') {
+                    showToast('错误', '导出失败: ' + (task.error_message || '未知错误'), 'error');
+                } else {
+                    // 继续轮询
+                    setTimeout(checkStatus, 2000);
+                }
+            } catch (error) {
+                console.error('轮询任务状态失败:', error);
+            }
+        };
+
+        setTimeout(checkStatus, 2000);
+    }
+
+    // 导出历史自动刷新定时器
+    let exportHistoryRefreshTimer = null;
+
+    // 显示导出历史
+    async function showExportHistory() {
+        await loadExportHistory();
+        const modal = new bootstrap.Modal(document.getElementById('exportHistoryModal'));
+        modal.show();
+
+        // 监听模态框关闭事件，停止自动刷新
+        document.getElementById('exportHistoryModal').addEventListener('hidden.bs.modal', function() {
+            if (exportHistoryRefreshTimer) {
+                clearInterval(exportHistoryRefreshTimer);
+                exportHistoryRefreshTimer = null;
+            }
+        }, { once: true });
+    }
+
+    // 加载导出历史
+    async function loadExportHistory() {
+        const response = await fetch('/api/monitor/export/tasks?limit=20');
+        exportTasks = await response.json();
+
+        const tbody = document.getElementById('export-history-table');
+        if (exportTasks.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">暂无导出记录</td></tr>';
+            // 停止自动刷新
+            if (exportHistoryRefreshTimer) {
+                clearInterval(exportHistoryRefreshTimer);
+                exportHistoryRefreshTimer = null;
+            }
+            return;
+        }
+
+        tbody.innerHTML = exportTasks.map(t => `
+            <tr>
+                <td>${new Date(t.created_at).toLocaleString()}</td>
+                <td>${t.zabbix_config_name || '-'}</td>
+                <td>${(t.filter_names || []).join(', ') || '-'}</td>
+                <td>
+                    ${t.status === 'completed' ? '<span class="badge bg-success">完成</span>' :
+                      t.status === 'failed' ? '<span class="badge bg-danger">失败</span>' :
+                      t.status === 'processing' ? '<span class="badge bg-warning">处理中</span>' :
+                      '<span class="badge bg-secondary">等待中</span>'}
+                </td>
+                <td>
+                    ${t.status === 'completed' ?
+                        `<button class="btn btn-sm btn-primary download-export" data-id="${t.id}">下载</button>
+                         <button class="btn btn-sm btn-outline-danger delete-export" data-id="${t.id}">删除</button>` :
+                        t.status === 'failed' ?
+                        `<button class="btn btn-sm btn-outline-danger delete-export" data-id="${t.id}">删除</button>` :
+                        '<span class="text-muted small">处理中...</span>'}
+                </td>
+            </tr>
+        `).join('');
+
+        // 绑定下载事件
+        document.querySelectorAll('.download-export').forEach(btn => {
+            btn.addEventListener('click', () => downloadExport(parseInt(btn.dataset.id)));
+        });
+        document.querySelectorAll('.delete-export').forEach(btn => {
+            btn.addEventListener('click', () => deleteExportTask(parseInt(btn.dataset.id)));
+        });
+
+        // 检查是否有处理中的任务
+        const hasProcessing = exportTasks.some(t => t.status === 'pending' || t.status === 'processing');
+
+        if (hasProcessing) {
+            // 如果有处理中的任务，启动自动刷新（每3秒）
+            if (!exportHistoryRefreshTimer) {
+                exportHistoryRefreshTimer = setInterval(() => {
+                    loadExportHistory();
+                }, 3000);
+            }
+        } else {
+            // 如果没有处理中的任务，停止自动刷新
+            if (exportHistoryRefreshTimer) {
+                clearInterval(exportHistoryRefreshTimer);
+                exportHistoryRefreshTimer = null;
+            }
+        }
+    }
+
+    // 下载导出文件
+    function downloadExport(taskId) {
+        window.location.href = `/api/monitor/export/download/${taskId}`;
+    }
+
+    // 删除导出任务
+    async function deleteExportTask(taskId) {
+        if (!confirm('确定要删除这条导出记录吗？')) return;
+
+        try {
+            await fetch(`/api/monitor/export/tasks/${taskId}`, {
+                method: 'DELETE'
+            });
+            loadExportHistory();
+            showToast('成功', '删除成功', 'success');
+        } catch (error) {
+            showToast('错误', '删除失败: ' + error.message, 'error');
+        }
+    }
+
+    // 删除筛选配置
+    async function deleteFilter(filterId) {
+        if (!confirm('确定要删除这个筛选配置吗？')) return;
+
+        try {
+            await fetch(`/api/monitor/filters/${filterId}`, {
+                method: 'DELETE'
+            });
+            loadFilters();
+            showToast('成功', '删除成功', 'success');
+        } catch (error) {
+            alert('删除失败: ' + error.message);
+        }
+    }
+
+    // 监听全局Zabbix配置变化
+    window.addEventListener('zabbixConfigChanged', function(e) {
+        console.log('Zabbix config changed:', e.detail);
+        loadFilters();
+    });
+
+    // 监听全局Zabbix配置加载完成
+    window.addEventListener('zabbixConfigLoaded', function() {
+        console.log('Zabbix config loaded event received');
+        loadFilters();
+    });
+
+    // 页面加载时检查是否已有配置
+    if (globalZabbixConfigs && globalZabbixConfigs.length > 0) {
+        loadFilters();
+    }
+</script>
+{% endblock %}

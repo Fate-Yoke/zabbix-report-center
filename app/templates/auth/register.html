@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - Zabbix Report Center</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .register-container {
+            width: 100%;
+            max-width: 500px;
+            padding: 1rem;
+        }
+
+        .register-card {
+            background: white;
+            border-radius: 1.5rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .register-header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 2.5rem 2rem;
+            text-align: center;
+            color: white;
+        }
+
+        .register-header h3 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        .register-header i {
+            font-size: 2rem;
+        }
+
+        .register-body {
+            padding: 2.5rem 2rem;
+        }
+
+        .form-floating {
+            margin-bottom: 1rem;
+        }
+
+        .form-floating .form-control {
+            border: 2px solid #e2e8f0;
+            border-radius: 0.75rem;
+            padding: 1rem 0.75rem;
+            height: 3.5rem;
+        }
+
+        .form-floating .form-control:focus {
+            border-color: #f093fb;
+            box-shadow: 0 0 0 3px rgba(240, 147, 251, 0.1);
+        }
+
+        .form-floating label {
+            padding: 1rem 0.75rem;
+        }
+
+        .form-text {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .captcha-container {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            margin-top: -0.5rem;
+        }
+
+        .captcha-input {
+            flex: 1;
+        }
+
+        .captcha-img {
+            height: 50px;
+            width: 140px;
+            object-fit: contain;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid #e2e8f0;
+            background-color: #f8fafc;
+        }
+
+        .captcha-img:hover {
+            transform: scale(1.05);
+            border-color: #f093fb;
+        }
+
+        .btn-register {
+            width: 100%;
+            padding: 0.875rem;
+            font-size: 1.125rem;
+            font-weight: 600;
+            border-radius: 0.75rem;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border: none;
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .btn-register:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(240, 147, 251, 0.4);
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .login-link a {
+            color: #f093fb;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .login-link a:hover {
+            color: #f5576c;
+            text-decoration: underline;
+        }
+
+        .alert {
+            border-radius: 0.75rem;
+            border: none;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div class="register-card">
+            <div class="register-header">
+                <h3>
+                    <i class="bi bi-person-plus-fill"></i>
+                    创建新账户
+                </h3>
+                <p class="mb-0 mt-2" style="opacity: 0.9;">加入 Zabbix Report Center</p>
+            </div>
+
+            <div class="register-body">
+                <div id="error-alert" class="alert alert-danger d-none"></div>
+                <div id="success-alert" class="alert alert-success d-none"></div>
+
+                <form id="register-form">
+                    <input type="hidden" id="captcha_key" name="captcha_key">
+
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="username" name="username" placeholder="用户名" required minlength="3" maxlength="50">
+                        <label for="username"><i class="bi bi-person"></i> 用户名</label>
+                    </div>
+                    <div class="form-text">3-50个字符</div>
+
+                    <div class="form-floating">
+                        <input type="email" class="form-control" id="email" name="email" placeholder="邮箱" required>
+                        <label for="email"><i class="bi bi-envelope"></i> 邮箱</label>
+                    </div>
+
+                    <div class="form-floating">
+                        <input type="password" class="form-control" id="password" name="password" placeholder="密码" required minlength="6">
+                        <label for="password"><i class="bi bi-lock"></i> 密码</label>
+                    </div>
+                    <div class="form-text">至少6个字符</div>
+
+                    <div class="form-floating">
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" placeholder="确认密码" required>
+                        <label for="confirm_password"><i class="bi bi-lock-fill"></i> 确认密码</label>
+                    </div>
+
+                    <div class="captcha-container">
+                        <div class="captcha-input">
+                            <div class="form-floating">
+                                <input type="text" class="form-control" id="captcha" name="captcha" placeholder="验证码" required maxlength="4">
+                                <label for="captcha"><i class="bi bi-shield-check"></i> 验证码</label>
+                            </div>
+                        </div>
+                        <img id="captcha-img" class="captcha-img" alt="验证码" title="点击刷新">
+                    </div>
+
+                    <button type="submit" class="btn btn-register">
+                        <i class="bi bi-person-plus"></i> 注册
+                    </button>
+                </form>
+
+                <div class="login-link">
+                    已有账号？<a href="/login">立即登录</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 检查注册是否开放
+        async function checkRegistration() {
+            try {
+                const response = await fetch('/api/system/registration');
+                const data = await response.json();
+
+                if (!data.allowed) {
+                    document.getElementById('register-form').classList.add('d-none');
+                    document.getElementById('error-alert').innerHTML = '<i class="bi bi-x-circle"></i> 系统已关闭注册功能，请联系管理员。';
+                    document.getElementById('error-alert').classList.remove('d-none');
+                    return false;
+                }
+
+                // 如果需要管理员启用，显示提示
+                if (data.require_activation) {
+                    const hint = document.createElement('div');
+                    hint.className = 'alert alert-info';
+                    hint.innerHTML = '<i class="bi bi-info-circle"></i> 注册后需要管理员启用账户才能登录。';
+                    document.getElementById('register-form').before(hint);
+                }
+
+                return true;
+            } catch (error) {
+                console.error('检查注册状态失败:', error);
+                return true;
+            }
+        }
+
+        // 加载验证码
+        function loadCaptcha() {
+            fetch('/api/auth/captcha')
+                .then(response => {
+                    const key = response.headers.get('X-Captcha-Key');
+                    document.getElementById('captcha_key').value = key;
+                    return response.blob();
+                })
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    document.getElementById('captcha-img').src = url;
+                });
+        }
+
+        // 点击刷新验证码
+        document.getElementById('captcha-img').addEventListener('click', loadCaptcha);
+
+        // 页面加载时检查注册状态并获取验证码
+        checkRegistration().then(allowed => {
+            if (allowed) {
+                loadCaptcha();
+            }
+        });
+
+        // 注册表单提交
+        document.getElementById('register-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+
+            if (password !== confirmPassword) {
+                document.getElementById('error-alert').textContent = '两次输入的密码不一致';
+                document.getElementById('error-alert').classList.remove('d-none');
+                return;
+            }
+
+            const data = {
+                username: document.getElementById('username').value,
+                email: document.getElementById('email').value,
+                password: password,
+                captcha_key: document.getElementById('captcha_key').value,
+                captcha_code: document.getElementById('captcha').value
+            };
+
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // 检查是否需要管理员启用
+                    if (result.require_activation) {
+                        // 显示成功提示，不自动登录
+                        document.getElementById('success-alert').innerHTML = '<i class="bi bi-check-circle"></i> 注册成功！请等待管理员启用账户后再登录。';
+                        document.getElementById('success-alert').classList.remove('d-none');
+                        document.getElementById('error-alert').classList.add('d-none');
+                        document.getElementById('register-form').reset();
+                        loadCaptcha();
+
+                        // 3秒后跳转到登录页
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 3000);
+                    } else {
+                        // 注册成功后自动登录
+                        window.location.href = '/set-cookie?token=' + encodeURIComponent(result.token);
+                    }
+                } else {
+                    document.getElementById('error-alert').textContent = result.detail || '注册失败';
+                    document.getElementById('error-alert').classList.remove('d-none');
+                    loadCaptcha();
+                }
+            } catch (error) {
+                document.getElementById('error-alert').textContent = '网络错误，请重试';
+                document.getElementById('error-alert').classList.remove('d-none');
+            }
+        });
+    </script>
+</body>
+</html>

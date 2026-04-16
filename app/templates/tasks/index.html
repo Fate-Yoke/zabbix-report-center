@@ -1,0 +1,924 @@
+{% extends "base.html" %}
+
+{% block title %}定时任务 - Zabbix Report Center{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-clock-history"></i> 定时任务</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#taskModal" onclick="openCreateModal()">
+        <i class="bi bi-plus-circle"></i> 新建任务
+    </button>
+</div>
+
+<!-- 任务列表 -->
+<div class="card">
+    <div class="card-body">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>任务名称</th>
+                    <th>Zabbix配置</th>
+                    <th>Cron表达式</th>
+                    <th>收件人</th>
+                    <th>状态</th>
+                    <th>上次执行</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="task-table">
+                <tr><td colspan="7" class="text-center text-muted">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 新建/编辑任务模态框 -->
+<div class="modal fade" id="taskModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="task-modal-title">新建定时任务</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="task-form">
+                    <input type="hidden" id="task-id">
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">任务名称 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="task-name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Cron表达式 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="cron-expression" required placeholder="0 9 * * * (每天9点)">
+                                <div class="form-text">格式: 分 时 日 月 周</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">描述</label>
+                        <textarea class="form-control" id="task-description" rows="2"></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Zabbix配置 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="zabbix-config" required>
+                                    <option value="">请选择</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">邮件配置 <span class="text-danger">*</span></label>
+                                <select class="form-select" id="email-config">
+                                    <option value="">不发送邮件</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <h6><i class="bi bi-envelope"></i> 邮件设置</h6>
+
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label class="form-label">邮件标题 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="email-subject" placeholder="例如：每日巡检报告">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">标题后缀</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="suffix-config-name">
+                                    <label class="form-check-label" for="suffix-config-name">添加配置名称</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="suffix-timestamp">
+                                    <label class="form-check-label" for="suffix-timestamp">添加时间戳</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">邮件内容</label>
+                        <textarea class="form-control" id="email-body" rows="3" placeholder="邮件正文内容"></textarea>
+                        <div class="form-text mt-2">
+                            <strong>邮件内容附加项：</strong>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="email-include-device-overview" checked>
+                                <label class="form-check-label" for="email-include-device-overview">附加设备概览摘要</label>
+                                <small class="text-muted d-block ms-4">在邮件正文中附加设备总数、在线数、离线数等统计信息</small>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="email-include-monitor-summary" checked>
+                                <label class="form-check-label" for="email-include-monitor-summary">附加监控数据摘要</label>
+                                <small class="text-muted d-block ms-4">在邮件正文中附加监控项的统计摘要信息</small>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="email-include-alert-summary">
+                                <label class="form-check-label" for="email-include-alert-summary">附加告警数据摘要</label>
+                                <small class="text-muted d-block ms-4">在邮件正文中附加最近24小时的告警统计信息（按级别分类）</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <h6><i class="bi bi-funnel"></i> 监控内容</h6>
+
+                    <div class="mb-3">
+                        <label class="form-label">Excel附件内容</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="include-device-overview" checked>
+                            <label class="form-check-label" for="include-device-overview">包含设备概览（工作簿）</label>
+                            <small class="text-muted d-block ms-4">在Excel附件中添加设备概览工作表，包含所有设备的详细信息</small>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="include-alert-data">
+                            <label class="form-check-label" for="include-alert-data">附加告警数据（工作簿）</label>
+                            <small class="text-muted d-block ms-4">在Excel附件中添加告警信息工作表，包含最近24小时的所有告警记录</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">监控筛选配置 <span class="text-danger">*</span></label>
+                        <div id="filter-checkboxes" class="border rounded p-2" style="max-height: 150px; overflow-y: auto;">
+                            加载中...
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">收件人邮箱 <span class="text-danger">*</span></label>
+                        <div id="recipients-container">
+                            <div class="input-group mb-2">
+                                <input type="email" class="form-control recipient-input" placeholder="邮箱地址">
+                                <button type="button" class="btn btn-outline-secondary remove-recipient">删除</button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="add-recipient">
+                            <i class="bi bi-plus"></i> 添加收件人
+                        </button>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">监控时间范围(秒) <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="time-range" value="86400">
+                        <div class="form-text">默认86400秒(24小时)</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="save-task">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 任务日志模态框 -->
+<div class="modal fade" id="logModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">任务执行记录</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>执行时间</th>
+                            <th>状态</th>
+                            <th>消息</th>
+                            <th>附件</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-table">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast 提示 -->
+<div class="toast-container position-fixed top-0 end-0 p-3">
+    <div id="toast" class="toast" role="alert">
+        <div class="toast-header">
+            <strong class="me-auto" id="toast-title">提示</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toast-body"></div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let zabbixConfigs = [];
+    let emailConfigs = [];
+    let monitorFilters = [];
+    let currentTasks = [];
+
+    let toastInstances = {}; // 存储toast实例
+    let toastCounter = 0; // toast计数器
+
+    // 显示Toast提示
+    function showToast(title, message, type = 'info', autohide = 3000) {
+        const toast = document.getElementById('toast');
+        const toastTitle = document.getElementById('toast-title');
+        const toastBody = document.getElementById('toast-body');
+
+        toastTitle.textContent = title;
+        toastBody.textContent = message;
+        toast.className = 'toast';
+        if (type === 'success') {
+            toast.classList.add('text-bg-success');
+        } else if (type === 'error') {
+            toast.classList.add('text-bg-danger');
+        } else if (type === 'warning') {
+            toast.classList.add('text-bg-warning');
+        } else if (type === 'info') {
+            toast.classList.add('text-bg-info');
+        }
+
+        const toastId = ++toastCounter;
+        const options = autohide > 0 ? { autohide: true, delay: autohide } : { autohide: false };
+        const toastInstance = new bootstrap.Toast(toast, options);
+        toastInstances[toastId] = toastInstance;
+        toastInstance.show();
+
+        return toastId;
+    }
+
+    // 移除Toast
+    function removeToast(toastId) {
+        if (toastInstances[toastId]) {
+            toastInstances[toastId].hide();
+            delete toastInstances[toastId];
+        }
+    }
+
+    // 加载配置
+    async function loadConfigs() {
+        try {
+            const [zcResponse, ecResponse, meResponse] = await Promise.all([
+                fetch('/api/zabbix-config'),
+                fetch('/api/email-config'),
+                fetch('/api/auth/me')
+            ]);
+
+            const zc = await zcResponse.json();
+            const me = await meResponse.json();
+
+            // 邮件配置可能返回错误，需要处理
+            let ec = [];
+            if (ecResponse.ok) {
+                ec = await ecResponse.json();
+                console.log('[DEBUG] Email configs loaded:', ec);
+            } else {
+                console.warn('Failed to load email configs:', ecResponse.status);
+            }
+
+            // 根据用户权限筛选Zabbix配置
+            if (me.is_admin) {
+                zabbixConfigs = zc.filter(c => c.is_active);
+            } else {
+                const allowedIds = me.allowed_zabbix_ids || [];
+                zabbixConfigs = zc.filter(c => c.is_active && allowedIds.includes(c.id));
+            }
+
+            emailConfigs = Array.isArray(ec) ? ec : [];
+            console.log('[DEBUG] Email configs after array check:', emailConfigs);
+
+            // 填充下拉框
+            const zcSelect = document.getElementById('zabbix-config');
+            zcSelect.innerHTML = '';
+            zabbixConfigs.forEach(c => {
+                zcSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+            });
+
+            const ecSelect = document.getElementById('email-config');
+            ecSelect.innerHTML = '';
+            emailConfigs.forEach(c => {
+                console.log('[DEBUG] Processing email config:', c);
+                if (c.is_active) {
+                    console.log('[DEBUG] Adding active email config:', c.name);
+                    ecSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+                }
+            });
+            console.log('[DEBUG] Email select HTML:', ecSelect.innerHTML);
+
+            // 初始不加载筛选配置，等用户选择Zabbix配置后再加载
+            const filterCheckboxes = document.getElementById('filter-checkboxes');
+            filterCheckboxes.innerHTML = '<div class="text-muted small">请先选择Zabbix配置</div>';
+        } catch (error) {
+            console.error('Failed to load configs:', error);
+            showToast('错误', '加载配置失败: ' + error.message, 'error');
+        }
+    }
+
+    // 加载筛选配置（根据选中的Zabbix配置）
+    async function loadMonitorFilters(zabbixConfigId) {
+        if (!zabbixConfigId) {
+            const filterCheckboxes = document.getElementById('filter-checkboxes');
+            filterCheckboxes.innerHTML = '<div class="text-muted small">请先选择Zabbix配置</div>';
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/monitor/filters?zabbix_config_id=${zabbixConfigId}`);
+            if (!response.ok) {
+                throw new Error('加载失败');
+            }
+            monitorFilters = await response.json();
+
+            const filterCheckboxes = document.getElementById('filter-checkboxes');
+            if (monitorFilters.length === 0) {
+                filterCheckboxes.innerHTML = '<div class="text-muted small">该Zabbix配置暂无筛选配置</div>';
+                return;
+            }
+
+            filterCheckboxes.innerHTML = monitorFilters.map(f => `
+                <div class="form-check">
+                    <input class="form-check-input filter-checkbox" type="checkbox" value="${f.id}" id="filter-${f.id}">
+                    <label class="form-check-label" for="filter-${f.id}">${f.name}</label>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error('Failed to load filters:', error);
+            const filterCheckboxes = document.getElementById('filter-checkboxes');
+            filterCheckboxes.innerHTML = '<div class="text-danger small">加载失败</div>';
+        }
+    }
+
+    // Zabbix配置选择变化时重新加载筛选配置
+    document.getElementById('zabbix-config').addEventListener('change', function() {
+        const configId = parseInt(this.value);
+        loadMonitorFilters(configId);
+    });
+
+    // 加载任务列表（根据左上角选择的Zabbix配置筛选）
+    async function loadTasks() {
+        try {
+            // 获取当前选择的Zabbix配置ID
+            const selectedConfigId = getSelectedZabbixConfigId();
+
+            const response = await fetch('/api/tasks');
+            if (!response.ok) {
+                throw new Error('加载失败');
+            }
+            const allTasks = await response.json();
+
+            // 根据选择的配置筛选任务
+            let tasks;
+            if (!selectedConfigId || selectedConfigId === '') {
+                // 未选择配置时，显示所有任务
+                tasks = allTasks;
+            } else if (selectedConfigId === 'unconfigured') {
+                // 选择"未配置"时，只显示无效的任务（管理员可见）
+                tasks = allTasks.filter(t => !t.is_valid);
+            } else {
+                // 选择了具体配置，显示该配置的任务
+                tasks = allTasks.filter(t => t.zabbix_config_id === parseInt(selectedConfigId));
+            }
+
+            currentTasks = tasks;
+
+            const tbody = document.getElementById('task-table');
+            if (tasks.length === 0) {
+                if (selectedConfigId === 'unconfigured') {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无无效任务</td></tr>';
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">该配置暂无任务</td></tr>';
+                }
+                return;
+            }
+
+            tbody.innerHTML = tasks.map(t => {
+                // 获取Zabbix配置名称
+                const zabbixConfig = zabbixConfigs.find(c => c.id === t.zabbix_config_id);
+                const zabbixName = zabbixConfig ? zabbixConfig.name : `ID: ${t.zabbix_config_id}`;
+
+                // 判断任务是否有效
+                const isInvalid = !t.is_valid;
+                const rowClass = isInvalid ? 'table-secondary opacity-75' : '';
+                const disabledAttr = isInvalid ? 'disabled' : '';
+
+                return `
+                <tr class="${rowClass}">
+                    <td>${t.name}${isInvalid ? ' <span class="badge bg-warning text-dark">配置失效</span>' : ''}</td>
+                    <td><span class="badge bg-info">${zabbixName}</span></td>
+                    <td><code>${t.cron_expression}</code></td>
+                    <td>${(t.recipients || []).join(', ')}</td>
+                    <td>
+                        ${t.is_active
+                            ? '<span class="badge bg-success">启用</span>'
+                            : '<span class="badge bg-secondary">禁用</span>'}
+                    </td>
+                    <td>${t.last_run ? new Date(t.last_run).toLocaleString() : '-'}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-success run-task" data-id="${t.id}" title="立即执行测试" ${disabledAttr}>
+                                <i class="bi bi-play-fill"></i>
+                            </button>
+                            <button class="btn btn-primary edit-task" data-id="${t.id}" title="编辑">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-secondary toggle-task" data-id="${t.id}" data-active="${t.is_active}" title="${t.is_active ? '禁用' : '启用'}" ${disabledAttr}>
+                                <i class="bi bi-${t.is_active ? 'pause' : 'play'}-fill"></i>
+                            </button>
+                            <button class="btn btn-info view-logs" data-id="${t.id}" title="查看日志">
+                                <i class="bi bi-list-ul"></i>
+                            </button>
+                            <button class="btn btn-danger delete-task" data-id="${t.id}" title="删除">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `}).join('');
+
+            // 绑定事件
+            document.querySelectorAll('.run-task:not([disabled])').forEach(btn => {
+                btn.addEventListener('click', () => runTask(parseInt(btn.dataset.id)));
+            });
+            document.querySelectorAll('.edit-task').forEach(btn => {
+                btn.addEventListener('click', () => editTask(parseInt(btn.dataset.id)));
+            });
+            document.querySelectorAll('.toggle-task:not([disabled])').forEach(btn => {
+                btn.addEventListener('click', () => toggleTask(parseInt(btn.dataset.id), btn.dataset.active === 'true'));
+            });
+            document.querySelectorAll('.view-logs').forEach(btn => {
+                btn.addEventListener('click', () => viewLogs(parseInt(btn.dataset.id)));
+            });
+            document.querySelectorAll('.delete-task').forEach(btn => {
+                btn.addEventListener('click', () => deleteTask(parseInt(btn.dataset.id)));
+            });
+        } catch (error) {
+            console.error('Failed to load tasks:', error);
+            const tbody = document.getElementById('task-table');
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">加载失败</td></tr>';
+        }
+    }
+
+    // 获取当前选择的Zabbix配置ID（使用base.html中的全局函数）
+    // function getSelectedZabbixConfigId() 已在 base.html 中定义，无需重复定义
+
+    // 打开新建模态框
+    function openCreateModal() {
+        document.getElementById('task-modal-title').textContent = '新建定时任务';
+        document.getElementById('task-form').reset();
+        document.getElementById('task-id').value = '';
+
+        // 重置邮件内容附加项为默认勾选
+        document.getElementById('email-include-device-overview').checked = true;
+        document.getElementById('email-include-monitor-summary').checked = true;
+
+        // 重置收件人
+        const container = document.getElementById('recipients-container');
+        container.innerHTML = `
+            <div class="input-group mb-2">
+                <input type="email" class="form-control recipient-input" placeholder="邮箱地址">
+                <button type="button" class="btn btn-outline-secondary remove-recipient">删除</button>
+            </div>
+        `;
+
+        // 重置筛选配置提示
+        const filterCheckboxes = document.getElementById('filter-checkboxes');
+        filterCheckboxes.innerHTML = '<div class="text-muted small">请先选择Zabbix配置</div>';
+    }
+
+    // 编辑任务
+    async function editTask(taskId) {
+        const task = currentTasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        document.getElementById('task-modal-title').textContent = '编辑定时任务';
+        document.getElementById('task-id').value = task.id;
+        document.getElementById('task-name').value = task.name;
+        document.getElementById('task-description').value = task.description || '';
+        document.getElementById('cron-expression').value = task.cron_expression;
+        document.getElementById('zabbix-config').value = task.zabbix_config_id;
+        document.getElementById('email-config').value = task.email_config_id || '';
+        document.getElementById('time-range').value = task.time_range;
+        document.getElementById('email-subject').value = task.email_subject || '';
+        document.getElementById('email-body').value = task.email_body || '';
+        document.getElementById('suffix-config-name').checked = task.subject_suffix_config_name;
+        document.getElementById('suffix-timestamp').checked = task.subject_suffix_timestamp;
+        document.getElementById('include-device-overview').checked = task.include_device_overview !== false;
+        document.getElementById('include-alert-data').checked = task.include_alert_data || false;
+        document.getElementById('email-include-device-overview').checked = task.email_include_device_overview !== false;
+        document.getElementById('email-include-monitor-summary').checked = task.email_include_monitor_summary !== false;
+        document.getElementById('email-include-alert-summary').checked = task.email_include_alert_summary || false;
+
+        // 先加载该Zabbix配置的筛选配置
+        await loadMonitorFilters(task.zabbix_config_id);
+
+        // 设置筛选配置勾选
+        document.querySelectorAll('.filter-checkbox').forEach(cb => {
+            cb.checked = (task.monitor_filter_ids || []).includes(parseInt(cb.value));
+        });
+
+        // 设置收件人
+        const container = document.getElementById('recipients-container');
+        container.innerHTML = '';
+        if (task.recipients && task.recipients.length > 0) {
+            task.recipients.forEach(email => {
+                const div = document.createElement('div');
+                div.className = 'input-group mb-2';
+                div.innerHTML = `
+                    <input type="email" class="form-control recipient-input" placeholder="邮箱地址" value="${email}">
+                    <button type="button" class="btn btn-outline-secondary remove-recipient">删除</button>
+                `;
+                container.appendChild(div);
+            });
+        } else {
+            container.innerHTML = `
+                <div class="input-group mb-2">
+                    <input type="email" class="form-control recipient-input" placeholder="邮箱地址">
+                    <button type="button" class="btn btn-outline-secondary remove-recipient">删除</button>
+                </div>
+            `;
+        }
+
+        new bootstrap.Modal(document.getElementById('taskModal')).show();
+    }
+
+    // 添加收件人
+    document.getElementById('add-recipient').addEventListener('click', function() {
+        const container = document.getElementById('recipients-container');
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2';
+        div.innerHTML = `
+            <input type="email" class="form-control recipient-input" placeholder="邮箱地址">
+            <button type="button" class="btn btn-outline-secondary remove-recipient">删除</button>
+        `;
+        container.appendChild(div);
+    });
+
+    // 删除收件人
+    document.getElementById('recipients-container').addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-recipient')) {
+            const inputs = document.querySelectorAll('.recipient-input');
+            if (inputs.length > 1) {
+                e.target.closest('.input-group').remove();
+            }
+        }
+    });
+
+    // 保存任务
+    document.getElementById('save-task').addEventListener('click', async function() {
+        // 获取表单数据
+        const taskName = document.getElementById('task-name').value.trim();
+        const cronExpression = document.getElementById('cron-expression').value.trim();
+        const zabbixConfigId = document.getElementById('zabbix-config').value;
+        const emailConfigId = document.getElementById('email-config').value;
+        const timeRange = document.getElementById('time-range').value.trim();
+        const emailSubject = document.getElementById('email-subject').value.trim();
+
+        const filterIds = Array.from(document.querySelectorAll('.filter-checkbox:checked'))
+            .map(cb => parseInt(cb.value));
+
+        const recipients = Array.from(document.querySelectorAll('.recipient-input'))
+            .map(input => input.value.trim())
+            .filter(v => v);
+
+        // 必填项验证
+        if (!taskName) {
+            showToast('错误', '请输入任务名称', 'error');
+            return;
+        }
+
+        if (!cronExpression) {
+            showToast('错误', '请输入Cron表达式', 'error');
+            return;
+        }
+
+        if (!zabbixConfigId) {
+            showToast('错误', '请选择Zabbix配置', 'error');
+            return;
+        }
+
+        if (!emailConfigId) {
+            showToast('错误', '请选择邮件配置', 'error');
+            return;
+        }
+
+        if (!timeRange) {
+            showToast('错误', '请输入监控时间范围', 'error');
+            return;
+        }
+
+        if (!emailSubject) {
+            showToast('错误', '请输入邮件标题', 'error');
+            return;
+        }
+
+        if (filterIds.length === 0) {
+            showToast('错误', '请选择至少一个监控筛选配置', 'error');
+            return;
+        }
+
+        if (recipients.length === 0) {
+            showToast('错误', '请至少添加一个收件人邮箱', 'error');
+            return;
+        }
+
+        const data = {
+            name: taskName,
+            description: document.getElementById('task-description').value,
+            cron_expression: cronExpression,
+            zabbix_config_id: parseInt(zabbixConfigId),
+            email_config_id: parseInt(emailConfigId),
+            monitor_filter_ids: filterIds,
+            include_device_overview: document.getElementById('include-device-overview').checked,
+            include_alert_data: document.getElementById('include-alert-data').checked,
+            recipients: recipients,
+            time_range: parseInt(timeRange),
+            email_subject: emailSubject,
+            email_body: document.getElementById('email-body').value || null,
+            subject_suffix_config_name: document.getElementById('suffix-config-name').checked,
+            subject_suffix_timestamp: document.getElementById('suffix-timestamp').checked,
+            email_include_device_overview: document.getElementById('email-include-device-overview').checked,
+            email_include_monitor_summary: document.getElementById('email-include-monitor-summary').checked,
+            email_include_alert_summary: document.getElementById('email-include-alert-summary').checked
+        };
+
+        console.log('保存任务数据:', JSON.stringify(data, null, 2));
+
+        const taskId = document.getElementById('task-id').value;
+        const url = taskId ? `/api/tasks/${taskId}` : '/api/tasks';
+        const method = taskId ? 'PUT' : 'POST';
+
+        try {
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('taskModal')).hide();
+                showToast('成功', taskId ? '任务已更新' : '任务已创建', 'success');
+                loadTasks();
+            } else {
+                const result = await response.json();
+                showToast('错误', '保存失败: ' + result.detail, 'error');
+            }
+        } catch (error) {
+            showToast('错误', '保存失败: ' + error.message, 'error');
+        }
+    });
+
+    // 检查并恢复正在执行的任务
+    function checkRunningTasks() {
+        const runningTasks = JSON.parse(localStorage.getItem('runningTasks') || '[]');
+        const now = Date.now();
+
+        runningTasks.forEach(task => {
+            // 只恢复5分钟内启动的任务
+            if (now - task.startTime < 300000) {
+                console.log('恢复任务轮询:', task.taskId);
+                const toastId = showToast('执行中', '正在生成报告并发送邮件，请稍候...', 'info', 0);
+                pollTaskStatus(task.taskId, toastId, task.startTime);
+            }
+        });
+
+        // 清理过期的任务记录
+        const validTasks = runningTasks.filter(task => now - task.startTime < 300000);
+        localStorage.setItem('runningTasks', JSON.stringify(validTasks));
+    }
+
+    // 轮询任务状态
+    async function pollTaskStatus(taskId, toastId, startTime) {
+        let attempts = 0;
+        const maxAttempts = 60;
+        const checkInterval = 1000;
+
+        const checkStatus = async () => {
+            attempts++;
+
+            try {
+                const logsResponse = await fetch(`/api/tasks/${taskId}/logs?limit=1`);
+                const logs = await logsResponse.json();
+
+                if (logs && logs.length > 0) {
+                    const latestLog = logs[0];
+                    const logTime = new Date(latestLog.started_at).getTime();
+
+                    // 检查是否是本次执行的任务（在startTime之后创建的）
+                    if (logTime >= startTime - 5000) {
+                        if (latestLog.finished_at) {
+                            // 任务完成，移除localStorage记录
+                            removeRunningTask(taskId);
+                            removeToast(toastId);
+
+                            if (latestLog.status === 'success') {
+                                showToast('成功', '任务执行成功！邮件已发送', 'success');
+                            } else {
+                                showToast('失败', `任务执行失败: ${latestLog.message || '未知错误'}`, 'error');
+                            }
+                            loadTasks();
+                            return;
+                        }
+                    }
+                }
+
+                // 继续检查
+                if (attempts < maxAttempts) {
+                    setTimeout(checkStatus, checkInterval);
+                } else {
+                    // 超时，但不移除localStorage记录（可能还在执行）
+                    removeToast(toastId);
+                    showToast('提示', '任务执行时间较长，已转为后台执行，请稍后查看日志', 'warning');
+                    loadTasks();
+                }
+            } catch (error) {
+                console.error('检查任务状态失败:', error);
+                if (attempts < maxAttempts) {
+                    setTimeout(checkStatus, checkInterval);
+                }
+            }
+        };
+
+        setTimeout(checkStatus, 1000);
+    }
+
+    // 添加正在执行的任务到localStorage
+    function addRunningTask(taskId) {
+        const runningTasks = JSON.parse(localStorage.getItem('runningTasks') || '[]');
+        runningTasks.push({ taskId, startTime: Date.now() });
+        localStorage.setItem('runningTasks', JSON.stringify(runningTasks));
+    }
+
+    // 从localStorage移除已完成的任务
+    function removeRunningTask(taskId) {
+        const runningTasks = JSON.parse(localStorage.getItem('runningTasks') || '[]');
+        const filtered = runningTasks.filter(task => task.taskId !== taskId);
+        localStorage.setItem('runningTasks', JSON.stringify(filtered));
+    }
+
+    // 执行任务（手动触发测试）
+    async function runTask(taskId) {
+        if (!confirm('确定要立即执行此任务吗？\n这将发送邮件给配置的收件人。')) return;
+
+        // 记录任务开始执行
+        const startTime = Date.now();
+        addRunningTask(taskId);
+
+        // 显示执行中的提示
+        const toastId = showToast('执行中', '正在生成报告并发送邮件，请稍候...', 'info', 0);
+
+        try {
+            // 触发任务执行
+            const response = await fetch(`/api/tasks/${taskId}/run`, {
+                method: 'POST'
+            });
+
+            if (!response.ok) {
+                throw new Error('任务触发失败');
+            }
+
+            // 开始轮询任务状态
+            pollTaskStatus(taskId, toastId, startTime);
+
+        } catch (error) {
+            removeRunningTask(taskId);
+            removeToast(toastId);
+            showToast('错误', '执行失败: ' + error.message, 'error');
+        }
+    }
+
+    // 切换任务状态
+    async function toggleTask(taskId, currentActive) {
+        try {
+            await fetch(`/api/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({is_active: !currentActive})
+            });
+            showToast('成功', currentActive ? '任务已禁用' : '任务已启用', 'success');
+            loadTasks();
+        } catch (error) {
+            showToast('错误', '操作失败: ' + error.message, 'error');
+        }
+    }
+
+    // 日志刷新定时器
+    let logRefreshTimer = null;
+    let currentLogTaskId = null;
+
+    // 查看日志
+    async function viewLogs(taskId) {
+        currentLogTaskId = taskId;
+        await refreshLogs(taskId);
+
+        const modal = new bootstrap.Modal(document.getElementById('logModal'));
+        modal.show();
+
+        // 监听弹窗关闭事件，停止自动刷新
+        document.getElementById('logModal').addEventListener('hidden.bs.modal', function () {
+            if (logRefreshTimer) {
+                clearInterval(logRefreshTimer);
+                logRefreshTimer = null;
+            }
+            currentLogTaskId = null;
+        }, { once: true });
+    }
+
+    // 刷新日志数据
+    async function refreshLogs(taskId) {
+        try {
+            const response = await fetch(`/api/tasks/${taskId}/logs`);
+            const logs = await response.json();
+
+            const tbody = document.getElementById('log-table');
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">暂无执行记录</td></tr>';
+            } else {
+                tbody.innerHTML = logs.map(log => `
+                    <tr>
+                        <td>${new Date(log.started_at).toLocaleString()}</td>
+                        <td>
+                            <span class="badge bg-${log.status === 'success' ? 'success' : log.status === 'running' ? 'warning' : 'danger'}">${log.status === 'success' ? '成功' : log.status === 'running' ? '运行中' : '失败'}</span>
+                        </td>
+                        <td>${log.message || '-'}</td>
+                        <td>
+                            ${log.attachment_filename && log.status === 'success' ?
+                                `<a href="/api/tasks/logs/${log.id}/download" class="btn btn-sm btn-outline-primary" target="_blank">
+                                    <i class="bi bi-download"></i> ${log.attachment_filename}
+                                </a>` : '-'}
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // 检查是否有运行中的任务
+            const hasRunning = logs.some(log => log.status === 'running');
+
+            if (hasRunning && !logRefreshTimer) {
+                // 如果有运行中的任务且定时器未启动，则启动自动刷新
+                logRefreshTimer = setInterval(() => {
+                    if (currentLogTaskId) {
+                        refreshLogs(currentLogTaskId);
+                    }
+                }, 2000); // 每2秒刷新一次
+            } else if (!hasRunning && logRefreshTimer) {
+                // 如果没有运行中的任务，停止自动刷新
+                clearInterval(logRefreshTimer);
+                logRefreshTimer = null;
+            }
+        } catch (error) {
+            console.error('刷新日志失败:', error);
+        }
+    }
+
+    // 删除任务
+    async function deleteTask(taskId) {
+        if (!confirm('确定要删除此任务吗？')) return;
+
+        try {
+            await fetch(`/api/tasks/${taskId}`, {
+                method: 'DELETE'
+            });
+            showToast('成功', '任务已删除', 'success');
+            loadTasks();
+        } catch (error) {
+            showToast('错误', '删除失败: ' + error.message, 'error');
+        }
+    }
+
+    // 初始化
+    loadConfigs();
+
+    // 恢复正在执行的任务轮询
+    checkRunningTasks();
+
+    // 监听全局Zabbix配置加载完成事件
+    window.addEventListener('zabbixConfigLoaded', function() {
+        console.log('Global Zabbix configs loaded, loading tasks...');
+        loadTasks();
+    });
+
+    // 监听全局Zabbix配置变化
+    window.addEventListener('zabbixConfigChanged', function(e) {
+        console.log('Tasks page received config change:', e.detail.configId);
+        loadTasks();
+    });
+</script>
+{% endblock %}

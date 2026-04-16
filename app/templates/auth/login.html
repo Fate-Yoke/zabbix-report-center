@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - Zabbix Report Center</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 450px;
+            padding: 1rem;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 1.5rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2.5rem 2rem;
+            text-align: center;
+            color: white;
+        }
+
+        .login-header h3 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+        }
+
+        .login-header i {
+            font-size: 2rem;
+        }
+
+        .login-body {
+            padding: 2.5rem 2rem;
+        }
+
+        .form-floating {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-floating .form-control {
+            border: 2px solid #e2e8f0;
+            border-radius: 0.75rem;
+            padding: 1rem 0.75rem;
+            height: 3.5rem;
+        }
+
+        .form-floating .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-floating label {
+            padding: 1rem 0.75rem;
+        }
+
+        .captcha-container {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            margin-top: -0.5rem;
+        }
+
+        .captcha-input {
+            flex: 1;
+        }
+
+        .captcha-img {
+            height: 50px;
+            width: 140px;
+            object-fit: contain;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid #e2e8f0;
+            background-color: #f8fafc;
+        }
+
+        .captcha-img:hover {
+            transform: scale(1.05);
+            border-color: #667eea;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 0.875rem;
+            font-size: 1.125rem;
+            font-weight: 600;
+            border-radius: 0.75rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .register-link {
+            text-align: center;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .register-link a {
+            color: #667eea;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .register-link a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        .alert {
+            border-radius: 0.75rem;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h3>
+                    <i class="bi bi-shield-lock"></i>
+                    Zabbix Report Center
+                </h3>
+                <p class="mb-0 mt-2" style="opacity: 0.9;">欢迎回来，请登录您的账户</p>
+            </div>
+
+            <div class="login-body">
+                <div id="error-alert" class="alert alert-danger d-none"></div>
+
+                <form id="login-form">
+                    <input type="hidden" id="captcha_key" name="captcha_key">
+
+                    <div class="form-floating">
+                        <input type="text" class="form-control" id="username" name="username" placeholder="请输入用户名或邮箱" required>
+                        <label for="username"><i class="bi bi-person"></i> 用户名/邮箱</label>
+                    </div>
+
+                    <div class="form-floating">
+                        <input type="password" class="form-control" id="password" name="password" placeholder="请输入密码" required>
+                        <label for="password"><i class="bi bi-lock"></i> 密码</label>
+                    </div>
+
+                    <div class="captcha-container">
+                        <div class="captcha-input">
+                            <div class="form-floating">
+                                <input type="text" class="form-control" id="captcha" name="captcha" placeholder="验证码" required maxlength="4">
+                                <label for="captcha"><i class="bi bi-shield-check"></i> 验证码</label>
+                            </div>
+                        </div>
+                        <img id="captcha-img" class="captcha-img" alt="验证码" title="点击刷新">
+                    </div>
+
+                    <button type="submit" class="btn btn-login">
+                        <i class="bi bi-box-arrow-in-right"></i> 登录
+                    </button>
+                </form>
+
+                <div class="register-link">
+                    还没有账号？<a href="/register">立即注册</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 加载验证码
+        function loadCaptcha() {
+            fetch('/api/auth/captcha')
+                .then(response => {
+                    const key = response.headers.get('X-Captcha-Key');
+                    document.getElementById('captcha_key').value = key;
+                    return response.blob();
+                })
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    document.getElementById('captcha-img').src = url;
+                });
+        }
+
+        // 点击刷新验证码
+        document.getElementById('captcha-img').addEventListener('click', loadCaptcha);
+
+        // 页面加载时获取验证码
+        loadCaptcha();
+
+        // 登录表单提交
+        document.getElementById('login-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const data = {
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                captcha_key: document.getElementById('captcha_key').value,
+                captcha_code: document.getElementById('captcha').value
+            };
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // 通过设置cookie接口跳转
+                    window.location.href = '/set-cookie?token=' + encodeURIComponent(result.token);
+                } else {
+                    document.getElementById('error-alert').textContent = result.detail || '登录失败';
+                    document.getElementById('error-alert').classList.remove('d-none');
+                    loadCaptcha();
+                }
+            } catch (error) {
+                document.getElementById('error-alert').textContent = '网络错误，请重试';
+                document.getElementById('error-alert').classList.remove('d-none');
+            }
+        });
+    </script>
+</body>
+</html>

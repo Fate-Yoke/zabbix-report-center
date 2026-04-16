@@ -1,0 +1,38 @@
+# FastAPI and server
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Environment variables
+python-dotenv==1.0.0
+
+# Database
+sqlalchemy==2.0.25
+alembic==1.13.1
+pymysql==1.1.0
+
+# Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+cryptography==41.0.7
+
+# HTTP requests
+requests==2.31.0
+
+# Data processing and Excel
+pandas==2.1.4
+openpyxl==3.1.2
+
+# Caching
+cachetools==5.3.2
+
+# Captcha
+captcha==0.5.0
+pillow==10.2.0
+
+# Scheduler
+apscheduler==3.10.4
+
+# Frontend
+jinja2==3.1.3
+aiofiles==23.2.1
