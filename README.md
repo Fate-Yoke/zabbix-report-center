@@ -46,7 +46,7 @@
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/your-username/zabbix-report-center.git
+git clone https://github.com/Fate-Yoke/zabbix-report-center.git
 cd zabbix-report-center
 
 # 2. 安装依赖
@@ -73,28 +73,33 @@ python run.py
 
 环境要求：Docker + Docker Compose
 
-**方式一：使用脚本（推荐）**
+**方式一：使用 Docker Hub 镜像（推荐）**
 
 ```bash
-# 1. 克隆项目
-git clone https://github.com/your-username/zabbix-report-center.git
-cd zabbix-report-center
+# 1. 创建配置文件目录
+mkdir zabbix-report-center && cd zabbix-report-center
 
-# 2. 复制并修改配置文件
-cp docker-compose.yml.example docker-compose.yml
-cp .env.example .env
-# 根据实际情况编辑配置文件
+# 2. 下载配置文件模板
+curl -O https://raw.githubusercontent.com/Fate-Yoke/zabbix-report-center/main/docker-compose.yml.example
+curl -O https://raw.githubusercontent.com/Fate-Yoke/zabbix-report-center/main/.env.example
 
-# 3. 运行启动脚本
-./start.sh        # Linux/Mac
-# 或 start.bat    # Windows
+# 3. 重命名配置文件
+mv docker-compose.yml.example docker-compose.yml
+mv .env.example .env
+
+# 4. 编辑 docker-compose.yml，将 build: . 改为：
+# image: yoke68/zabbix-report-center:latest
+# 并根据需要修改端口映射和密码
+
+# 5. 启动服务
+docker-compose up -d
 ```
 
-**方式二：手动部署**
+**方式二：本地构建镜像**
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/your-username/zabbix-report-center.git
+git clone https://github.com/Fate-Yoke/zabbix-report-center.git
 cd zabbix-report-center
 
 # 2. 复制并修改配置文件
