@@ -9,6 +9,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+from email.header import Header
+from urllib.parse import quote
 from typing import List, Optional
 
 from openpyxl import Workbook
@@ -87,10 +89,23 @@ class EmailService:
                 )
                 part.set_payload(f.read())
                 encoders.encode_base64(part)
-                part.add_header(
-                    "Content-Disposition",
-                    f'attachment; filename="{os.path.basename(attachment_path)}"'
-                )
+
+                # 处理中文文件名
+                filename = os.path.basename(attachment_path)
+                try:
+                    # 尝试 ASCII 编码，如果失败则使用 RFC 2231 编码
+                    filename.encode('ascii')
+                    part.add_header(
+                        "Content-Disposition",
+                        f'attachment; filename="{filename}"'
+                    )
+                except UnicodeEncodeError:
+                    # 文件名包含非 ASCII 字符，使用 RFC 2231 编码
+                    encoded_filename = quote(filename, safe='')
+                    part.add_header(
+                        "Content-Disposition",
+                        f"attachment; filename*=UTF-8''{encoded_filename}"
+                    )
                 msg.attach(part)
 
         server = None
