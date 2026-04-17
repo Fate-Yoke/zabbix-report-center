@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}系统日志{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 系统日志页面特殊样式 - 固定布局不滚动 */
+    .main-content {
+        overflow: hidden !important;
+        height: calc(100vh - 70px) !important;
+        padding: 1.5rem !important;
+    }
+
+    #logs-page-container {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #logs-page-container .card:last-child {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        min-height: 0;
+    }
+
+    #logs-page-container .card:last-child .card-body {
+        flex: 1;
+        overflow: hidden;
+        min-height: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="logs-page-container">
+    <div class="row mb-3">
+        <div class="col">
+            <h2><i class="bi bi-file-text"></i> 系统日志</h2>
+        </div>
+    </div>
+
+    <!-- 过滤器 -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">日志级别</label>
+                    <select class="form-select" id="level-filter">
+                        <option value="">全部</option>
+                        <option value="DEBUG">DEBUG</option>
+                        <option value="INFO">INFO</option>
+                        <option value="WARNING">WARNING</option>
+                        <option value="ERROR">ERROR</option>
+                        <option value="CRITICAL">CRITICAL</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">开始时间</label>
+                    <input type="datetime-local" class="form-control" id="start-time">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">结束时间</label>
+                    <input type="datetime-local" class="form-control" id="end-time">
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button class="btn btn-primary me-2" onclick="loadLogs()" title="查询日志">
+                        <i class="bi bi-search"></i>
+                    </button>
+                    <button class="btn btn-success me-2" onclick="toggleStream()" title="开启/停止实时日志">
+                        <i class="bi bi-play-circle" id="stream-icon"></i>
+                        <span id="stream-text" class="ms-1">开启实时</span>
+                    </button>
+                    <button class="btn btn-secondary me-2" onclick="clearFilters()" title="清空筛选条件">
+                        <i class="bi bi-x-circle"></i>
+                    </button>
+                    <button class="btn btn-danger" onclick="clearOldLogs()" title="清理旧日志">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日志显示区域 -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>日志列表</span>
+            <div>
+                <label class="form-check-label me-2">
+                    <input type="checkbox" class="form-check-input" id="auto-scroll" checked>
+                    自动滚动
+                </label>
+                <button class="btn btn-sm btn-warning" onclick="clearLogDisplay()">
+                    <i class="bi bi-eraser"></i> 清空显示
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div id="log-container" style="height: 100%; overflow-y: auto; background-color: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; padding: 10px;">
+                <div id="log-content"></div>
+            </div>
+        </div>
+        <div class="card-footer text-muted">
+            <small>共 <span id="log-count">0</span> 条日志</small>
+        </div>
+    </div>
+</div>
+
+<!-- 清理日志对话框 -->
+<div class="modal fade" id="clearLogsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">清理旧日志</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label">保留最近多少天的日志？</label>
+                <input type="number" class="form-control" id="keep-days" value="30" min="1">
+                <p class="text-muted small mt-2">超过指定天数的日志将被永久删除</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="executeClearLogs()">确认清理</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let isStreaming = false;
+    let logCount = 0;
+    let streamInterval = null;
+    let lastLogId = 0;
+
+    // 日志级别颜色映射
+    const levelColors = {
+        'DEBUG': '#808080',
+        'INFO': '#4ec9b0',
+        'WARNING': '#dcdcaa',
+        'ERROR': '#f48771',
+        'CRITICAL': '#ff0000'
+    };
+
+    // 格式化日志行
+    function formatLogLine(log) {
+        const time = new Date(log.created_at).toLocaleString();
+        const color = levelColors[log.level] || '#d4d4d4';
+        return `<div style="margin-bottom: 2px;">
+            <span style="color: #808080;">${time}</span>
+            <span style="color: ${color}; font-weight: bold;">[${log.level}]</span>
+            <span style="color: #569cd6;">${log.logger_name}:</span>
+            <span>${escapeHtml(log.message)}</span>
+        </div>`;
+    }
+
+    // HTML转义
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // 加载日志
+    async function loadLogs() {
+        const level = document.getElementById('level-filter').value;
+        const startTime = document.getElementById('start-time').value;
+        const endTime = document.getElementById('end-time').value;
+
+        let url = '/api/logs/?limit=500';
+        if (level) url += `&level=${level}`;
+        if (startTime) url += `&start_time=${new Date(startTime).toISOString()}`;
+        if (endTime) url += `&end_time=${new Date(endTime).toISOString()}`;
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const data = await response.json();
+
+            if (!data.logs || !Array.isArray(data.logs)) {
+                throw new Error('返回数据格式错误');
+            }
+
+            const content = document.getElementById('log-content');
+            const logs = [...data.logs].reverse();
+            content.innerHTML = logs.map(log => formatLogLine(log)).join('');
+            logCount = logs.length;
+            document.getElementById('log-count').textContent = logCount;
+
+            // 记录最后一条日志的 ID
+            if (logs.length > 0) {
+                lastLogId = logs[logs.length - 1].id;
+            }
+
+            scrollToBottom();
+        } catch (error) {
+            console.error('加载日志失败:', error);
+            alert('加载日志失败: ' + error.message);
+        }
+    }
+
+    // 开启/关闭实时流
+    function toggleStream() {
+        if (isStreaming) {
+            stopStream();
+        } else {
+            startStream();
+        }
+    }
+
+    // 开启实时流（使用轮询）
+    function startStream() {
+        // 先加载一次最新日志
+        loadLatestLogs();
+
+        // 每2秒轮询一次新日志
+        streamInterval = setInterval(loadLatestLogs, 2000);
+
+        isStreaming = true;
+        document.getElementById('stream-text').textContent = '停止实时';
+        document.getElementById('stream-icon').className = 'bi bi-stop-circle';
+    }
+
+    // 加载最新日志
+    async function loadLatestLogs() {
+        try {
+            const response = await fetch('/api/logs/?limit=100');
+            if (!response.ok) return;
+
+            const data = await response.json();
+            if (!data.logs || !Array.isArray(data.logs)) return;
+
+            // 过滤出新日志
+            const newLogs = data.logs.filter(log => log.id > lastLogId);
+
+            if (newLogs.length > 0) {
+                const content = document.getElementById('log-content');
+
+                // 添加新日志到顶部（因为最新的在前面）
+                newLogs.reverse().forEach(log => {
+                    content.innerHTML += formatLogLine(log);
+                    logCount++;
+                });
+
+                document.getElementById('log-count').textContent = logCount;
+
+                // 更新最后一条日志的 ID
+                lastLogId = Math.max(...newLogs.map(log => log.id));
+
+                scrollToBottom();
+            }
+        } catch (error) {
+            console.error('轮询日志失败:', error);
+        }
+    }
+
+    // 停止实时流
+    function stopStream() {
+        if (streamInterval) {
+            clearInterval(streamInterval);
+            streamInterval = null;
+        }
+        isStreaming = false;
+        document.getElementById('stream-text').textContent = '开启实时';
+        document.getElementById('stream-icon').className = 'bi bi-play-circle';
+    }
+
+    // 自动滚动到底部
+    function scrollToBottom() {
+        if (document.getElementById('auto-scroll').checked) {
+            const container = document.getElementById('log-container');
+            container.scrollTop = container.scrollHeight;
+        }
+    }
+
+    // 清空筛选
+    function clearFilters() {
+        document.getElementById('level-filter').value = '';
+        document.getElementById('start-time').value = '';
+        document.getElementById('end-time').value = '';
+    }
+
+    // 清空显示
+    function clearLogDisplay() {
+        document.getElementById('log-content').innerHTML = '';
+        logCount = 0;
+        document.getElementById('log-count').textContent = logCount;
+    }
+
+    // 清理旧日志
+    function clearOldLogs() {
+        new bootstrap.Modal(document.getElementById('clearLogsModal')).show();
+    }
+
+    // 执行清理
+    async function executeClearLogs() {
+        const days = parseInt(document.getElementById('keep-days').value);
+        if (days < 1) {
+            alert('天数必须大于0');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/logs/?days=${days}`, {
+                method: 'DELETE'
+            });
+            const result = await response.json();
+
+            bootstrap.Modal.getInstance(document.getElementById('clearLogsModal')).hide();
+            alert(result.message);
+
+            // 重新加载日志
+            if (!isStreaming) {
+                loadLogs();
+            }
+        } catch (error) {
+            alert('清理失败: ' + error.message);
+        }
+    }
+
+    // 页面加载时加载日志
+    window.addEventListener('load', function() {
+        loadLogs();
+    });
+
+    // 页面卸载时停止轮询
+    window.addEventListener('beforeunload', function() {
+        stopStream();
+    });
+</script>
+{% endblock %}
