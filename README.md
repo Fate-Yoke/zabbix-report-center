@@ -130,7 +130,7 @@ mv .env.example .env
 docker-compose up -d
 ```
 
-**方式二：本地构建镜像**
+**方式二：本地构建镜像（前后端一体）**
 
 ```bash
 # 1. 克隆项目
@@ -154,6 +154,31 @@ docker-compose down
 # 重启服务
 docker-compose restart
 ```
+
+**方式三：前后端分开部署**
+
+适用于需要前后端独立扩展或部署在不同服务器的场景。
+
+```bash
+# 1. 克隆项目
+git clone https:///Fate-Yoke/zabbix-report-center.git
+cd zabbix-report-center
+
+# 2. 复制并修改配置文件
+cp .env.example .env
+# 编辑 .env 文件配置密钥
+
+# 3. 构建并启动（使用分开部署配置）
+docker-compose -f docker-compose.separate.yml up -d --build
+
+# 查看日志
+docker-compose -f docker-compose.separate.yml logs -f
+```
+
+分开部署架构：
+- 前端容器（Nginx）：端口 37201，对外暴露
+- 后端容器（FastAPI）：端口 38204，仅容器内部访问
+- 数据库容器（MySQL）：端口 3306，仅容器内部访问
 
 访问 http://localhost:37201，首次注册的用户自动成为管理员。
 
