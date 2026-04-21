@@ -30,19 +30,28 @@
 
 ## 技术栈
 
+### 后端
 - FastAPI + Uvicorn
-- MySQL / SQLite
-- Jinja2 + Bootstrap 5 + jQuery
+- MySQL / SQLite / PostgreSQL
 - APScheduler
 - Pandas + OpenPyXL
+
+### 前端
+- Vue 3 + Composition API
+- TypeScript
+- Element Plus UI 框架
+- Pinia 状态管理
+- Vue Router 路由
+- Axios HTTP 请求
+- Vite 构建工具
 
 ## 快速开始
 
 ### 本地部署
 
-环境要求：Python 3.8+
+环境要求：Python 3.8+、Node.js 20.19+
 
-**手动部署：**
+**后端：**
 
 ```bash
 # 1. 克隆项目
@@ -63,11 +72,35 @@ python -c "import secrets; print('ENCRYPTION_KEY=' + secrets.token_urlsafe(32))"
 python -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(32))" | Out-File -Append .env -Encoding utf8
 python -c "import secrets; print('ENCRYPTION_KEY=' + secrets.token_urlsafe(32))" | Out-File -Append .env -Encoding utf8
 
-# 4. 启动服务
+# 4. 启动后端服务
 python run.py
 ```
 
-访问 http://localhost:37201，首次注册的用户自动成为管理员。
+**前端：**
+
+```bash
+# 1. 进入前端目录
+cd frontend
+
+# 2. 安装依赖
+npm install
+
+# 3. 启动开发服务器
+npm run dev
+```
+
+后端访问 http://localhost:38204，前端开发服务器访问 http://localhost:37201
+
+### 生产部署
+
+```bash
+# 构建前端
+cd frontend
+npm run build
+
+# 前端构建产物在 frontend/dist 目录
+# 可使用 Nginx 托管，或由后端服务托管
+```
 
 ### Docker 部署
 
@@ -160,7 +193,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 ### 创建定时任务
 
 1. 进入「定时任务」页面
-2. 点击「新增任务」
+2. 点击「添加任务」
 3. 填写任务信息并保存
 
 Cron 表达式示例：
@@ -179,12 +212,23 @@ Cron 表达式示例：
 
 ```
 zabbix-report-center/
-├── app/                # 应用代码
+├── app/                # 后端应用代码
 │   ├── api/           # API 路由
 │   ├── models/        # 数据模型
+│   ├── schemas/       # Pydantic 模型
 │   ├── services/      # 业务逻辑
-│   ├── templates/     # HTML 模板
-│   └── static/        # 静态资源
+│   └── utils/         # 工具函数
+├── frontend/           # Vue 3 前端项目
+│   ├── src/
+│   │   ├── api/       # API 接口封装
+│   │   ├── components/# 公共组件
+│   │   ├── composables/# 组合式函数
+│   │   ├── router/    # 路由配置
+│   │   ├── stores/    # Pinia 状态管理
+│   │   ├── types/     # TypeScript 类型
+│   │   ├── utils/     # 工具函数
+│   │   └── views/     # 页面组件
+│   └── dist/          # 构建产物
 ├── doc/                # 文档
 │   └── images/        # 截图
 ├── exports/            # 导出文件

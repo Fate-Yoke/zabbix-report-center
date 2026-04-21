@@ -2,17 +2,18 @@
 告警信息API
 """
 import logging
+import os
+import json
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Body
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
-import json
 import asyncio
 import io
 import pandas as pd
-import os
 
+from app.config import BASE_DIR
 from app.database import get_db
 from app.models.user import User
 from app.models.zabbix_config import ZabbixConfig
@@ -24,6 +25,133 @@ from app.schemas.alert_export import AlertExportTaskCreate, AlertExportTaskRespo
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 logger = logging.getLogger(__name__)
+
+# 告警缓存目录
+ALERTS_CACHE_DIR = os.path.join(BASE_DIR, "alerts_cache")
+os.makedirs(ALERTS_CACHE_DIR, exist_ok=True)
+
+
+def get_alerts_cache_path(zabbix_config_id: int) -> str:
+    """获取告警缓存文件路径"""
+    return os.path.join(ALERTS_CACHE_DIR, f"alerts_{zabbix_config_id}.json")
+
+
+def save_alerts_cache(zabbix_config_id: int, data: dict, filters: dict) -> None:
+    """保存告警数据到 JSON 文件"""
+    cache_path = get_alerts_cache_path(zabbix_config_id)
+    cache_data = {
+        "data": data,
+        "filters": filters,
+        "updated_at": datetime.now().isoformat()
+    }
+    with open(cache_path, 'w', encoding='utf-8') as f:
+        json.dump(cache_data, f, ensure_ascii=False)
+
+
+def load_alerts_cache(zabbix_config_id: int) -> Optional[dict]:
+    """从 JSON 文件加载告警数据"""
+    cache_path = get_alerts_cache_path(zabbix_config_id)
+    if os.path.exists(cache_path):
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
+
+
+def do_alerts_query(zabbix_config_id: int, config: ZabbixConfig, filters: dict):
+    """后台执行告警查询"""
+    try:
+        zabbix = ZabbixService.from_config(config)
+
+        # 解析筛选参数
+        severity_list = filters.get('severity')
+        if severity_list and isinstance(severity_list, str):
+            severity_list = [int(s.strip()) for s in severity_list.split(',')]
+
+        recovered_filter = None
+        if filters.get('recovered') == "recovered":
+            recovered_filter = True
+        elif filters.get('recovered') == "unrecovered":
+            recovered_filter = False
+
+        alerts = zabbix.get_alerts(
+            time_from=filters.get('time_from'),
+            time_till=filters.get('time_till'),
+            severity=severity_list,
+            recovered=recovered_filter
+        )
+
+        # 保存到缓存
+        result = {
+            "total": len(alerts),
+            "alerts": alerts,
+            "zabbix_config_name": config.name,
+            "has_more": False  # 全部加载
+        }
+        save_alerts_cache(zabbix_config_id, result, filters)
+
+        logger.info(f"告警查询完成，配置ID: {zabbix_config_id}，共 {len(alerts)} 条")
+
+    except Exception as e:
+        logger.error(f"告警查询失败: {str(e)}")
+
+
+@router.post("/query-task")
+async def create_alerts_query_task(
+    zabbix_config_id: int = Body(..., embed=True),
+    time_from: Optional[int] = Body(None, embed=True),
+    time_till: Optional[int] = Body(None, embed=True),
+    severity: Optional[str] = Body(None, embed=True),
+    recovered: Optional[str] = Body(None, embed=True),
+    user: User = Depends(get_current_user_required),
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None
+):
+    """创建告警查询任务（后台执行，不阻塞前端）"""
+    # 检查权限
+    config = db.query(ZabbixConfig).filter(ZabbixConfig.id == zabbix_config_id).first()
+    if not config:
+        raise HTTPException(status_code=404, detail="Zabbix配置不存在")
+
+    if not user.is_admin and zabbix_config_id not in (user.allowed_zabbix_ids or []):
+        raise HTTPException(status_code=403, detail="无权访问此Zabbix配置")
+
+    filters = {
+        'time_from': time_from,
+        'time_till': time_till,
+        'severity': severity,
+        'recovered': recovered
+    }
+
+    # 启动后台任务
+    background_tasks.add_task(do_alerts_query, zabbix_config_id, config, filters)
+
+    return {"status": "processing", "zabbix_config_id": zabbix_config_id}
+
+
+@router.get("/cache/{zabbix_config_id}")
+async def get_alerts_cache_data(
+    zabbix_config_id: int,
+    user: User = Depends(get_current_user_required),
+    db: Session = Depends(get_db)
+):
+    """获取缓存的告警数据"""
+    # 检查权限
+    config = db.query(ZabbixConfig).filter(ZabbixConfig.id == zabbix_config_id).first()
+    if not config:
+        raise HTTPException(status_code=404, detail="Zabbix配置不存在")
+
+    if not user.is_admin and zabbix_config_id not in (user.allowed_zabbix_ids or []):
+        raise HTTPException(status_code=403, detail="无权访问此Zabbix配置")
+
+    cached = load_alerts_cache(zabbix_config_id)
+    if not cached:
+        raise HTTPException(status_code=404, detail="数据未就绪，请稍后重试")
+
+    return {
+        **cached["data"],
+        "cached": True,
+        "cached_at": cached["updated_at"]
+    }
 
 
 @router.get("/")

@@ -39,7 +39,7 @@ echo ==========================================
 echo   部署完成！
 echo ==========================================
 echo.
-echo 访问地址: http://localhost:37201
+echo 访问地址: http://localhost:38204
 echo.
 echo 常用命令:
 echo   查看日志: docker-compose logs -f app

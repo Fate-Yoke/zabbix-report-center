@@ -463,8 +463,13 @@ class SchedulerService:
             self.remove_task(task.id)
 
     def run_task_now(self, task_id: int):
-        """立即执行任务"""
-        execute_task(task_id)
+        """立即执行任务（异步，不阻塞）"""
+        # 使用调度器的线程池异步执行
+        self.scheduler.add_job(
+            execute_task,
+            args=[task_id],
+            id=f"manual_task_{task_id}_{int(time.time())}"
+        )
 
     def load_all_tasks(self):
         """加载所有活跃任务"""

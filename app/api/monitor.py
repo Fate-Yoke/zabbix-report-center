@@ -34,9 +34,38 @@ logger = logging.getLogger(__name__)
 # 使用字典存储不同缓存时间的数据
 dashboard_cache: Dict[str, tuple] = {}
 
+# Dashboard 查询缓存目录
+DASHBOARD_CACHE_DIR = os.path.join(BASE_DIR, "dashboard_cache")
+os.makedirs(DASHBOARD_CACHE_DIR, exist_ok=True)
+
 # 导出目录
 EXPORT_DIR = os.path.join(BASE_DIR, "exports")
 os.makedirs(EXPORT_DIR, exist_ok=True)
+
+
+def get_dashboard_cache_path(zabbix_config_id: int) -> str:
+    """获取 dashboard 缓存文件路径"""
+    return os.path.join(DASHBOARD_CACHE_DIR, f"dashboard_{zabbix_config_id}.json")
+
+
+def save_dashboard_cache(zabbix_config_id: int, data: dict) -> None:
+    """保存 dashboard 数据到 JSON 文件"""
+    cache_path = get_dashboard_cache_path(zabbix_config_id)
+    cache_data = {
+        "data": data,
+        "updated_at": datetime.now().isoformat()
+    }
+    with open(cache_path, 'w', encoding='utf-8') as f:
+        json.dump(cache_data, f, ensure_ascii=False)
+
+
+def load_dashboard_cache(zabbix_config_id: int) -> Optional[dict]:
+    """从 JSON 文件加载 dashboard 数据"""
+    cache_path = get_dashboard_cache_path(zabbix_config_id)
+    if os.path.exists(cache_path):
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
 
 
 def check_zabbix_access(user: User, zabbix_config_id: int) -> None:
@@ -57,6 +86,66 @@ class ExportRequest(BaseModel):
     filter_ids: List[int]
     zabbix_config_id: int
     include_device_overview: bool = True
+
+
+@router.post("/dashboard-task")
+async def create_dashboard_task(
+    zabbix_config_id: int = Body(..., embed=True),
+    user: User = Depends(get_current_user_required),
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None
+):
+    """创建 dashboard 数据查询任务（后台执行，不阻塞前端）"""
+    # 检查权限
+    check_zabbix_access(user, zabbix_config_id)
+
+    # 验证Zabbix配置
+    config = db.query(ZabbixConfig).filter(ZabbixConfig.id == zabbix_config_id).first()
+    if not config:
+        raise HTTPException(status_code=404, detail="Zabbix配置不存在")
+
+    # 启动后台任务
+    background_tasks.add_task(do_dashboard_query, zabbix_config_id, config)
+
+    return {"status": "processing", "zabbix_config_id": zabbix_config_id}
+
+
+def do_dashboard_query(zabbix_config_id: int, config: ZabbixConfig):
+    """后台执行 dashboard 数据查询"""
+    try:
+        zabbix_service = ZabbixService.from_config(config)
+        monitor_service = MonitorService(zabbix_service)
+
+        data = monitor_service.get_dashboard_stats()
+
+        # 保存到缓存文件
+        save_dashboard_cache(zabbix_config_id, data)
+
+        logger.info(f"Dashboard 数据查询完成，配置ID: {zabbix_config_id}")
+
+    except Exception as e:
+        logger.error(f"Dashboard 数据查询失败: {str(e)}")
+
+
+@router.get("/dashboard-cache/{zabbix_config_id}")
+async def get_dashboard_cache_data(
+    zabbix_config_id: int,
+    user: User = Depends(get_current_user_required),
+    db: Session = Depends(get_db)
+):
+    """获取缓存的 dashboard 数据"""
+    # 检查权限
+    check_zabbix_access(user, zabbix_config_id)
+
+    cached = load_dashboard_cache(zabbix_config_id)
+    if not cached:
+        raise HTTPException(status_code=404, detail="数据未就绪，请稍后重试")
+
+    return {
+        **cached["data"],
+        "cached": True,
+        "cached_at": cached["updated_at"]
+    }
 
 
 @router.get("/dashboard")
@@ -532,6 +621,209 @@ async def get_monitor_data_stream(
 
 # ========== 导出任务 ==========
 
+# 查询数据缓存目录
+QUERY_CACHE_DIR = os.path.join(BASE_DIR, "query_cache")
+os.makedirs(QUERY_CACHE_DIR, exist_ok=True)
+
+
+def get_query_cache_path(task_id: int) -> str:
+    """获取查询缓存文件路径"""
+    return os.path.join(QUERY_CACHE_DIR, f"query_{task_id}.json")
+
+
+def save_query_cache(task_id: int, data: list) -> None:
+    """保存查询结果到JSON文件"""
+    cache_path = get_query_cache_path(task_id)
+    cache_data = {
+        "data": data,
+        "count": len(data),
+        "completed_at": datetime.now().isoformat()
+    }
+    with open(cache_path, 'w', encoding='utf-8') as f:
+        json.dump(cache_data, f, ensure_ascii=False)
+
+
+def load_query_cache(task_id: int) -> Optional[dict]:
+    """从JSON文件加载查询结果"""
+    cache_path = get_query_cache_path(task_id)
+    if os.path.exists(cache_path):
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
+
+
+def delete_query_cache(task_id: int) -> None:
+    """删除查询缓存文件"""
+    cache_path = get_query_cache_path(task_id)
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+
+
+@router.post("/query-task", response_model=ExportTaskResponse)
+async def create_query_task(
+    request: MonitorDataRequest,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user_required),
+    db: Session = Depends(get_db)
+):
+    """创建查询任务（后台执行，不阻塞前端）"""
+    # 检查权限
+    check_zabbix_access(user, request.zabbix_config_id)
+
+    # 验证Zabbix配置
+    config = db.query(ZabbixConfig).filter(ZabbixConfig.id == request.zabbix_config_id).first()
+    if not config:
+        raise HTTPException(status_code=404, detail="Zabbix配置不存在")
+
+    # 获取筛选配置名称
+    filter_names = []
+    for filter_id in request.filter_ids:
+        filter_obj = db.query(MonitorFilter).filter(MonitorFilter.id == filter_id).first()
+        if filter_obj:
+            filter_names.append(filter_obj.name)
+
+    # 清理该用户之前的查询缓存文件
+    old_tasks = db.query(ExportTask).filter(
+        ExportTask.created_by == user.id,
+        ExportTask.task_type == "query",  # 只清理查询任务
+        ExportTask.status.in_(["completed", "pending", "processing"])
+    ).all()
+    for old_task in old_tasks:
+        delete_query_cache(old_task.id)
+        # 将旧任务标记为已清理
+        old_task.status = "cleaned"
+    if old_tasks:
+        db.commit()
+
+    # 创建查询任务记录
+    task = ExportTask(
+        zabbix_config_id=request.zabbix_config_id,
+        zabbix_config_name=config.name,
+        filter_ids=request.filter_ids,
+        filter_names=filter_names,
+        include_device_overview=False,
+        status="pending",
+        task_type="query",  # 标记为查询任务
+        created_by=user.id
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    # 启动后台任务
+    background_tasks.add_task(do_query_and_cache, task.id, request.time_range)
+
+    logger.info(f"用户 {user.username} 创建监控数据查询任务 (ID: {task.id})")
+
+    return task
+
+
+def do_query_and_cache(task_id: int, time_range: int = 86400):
+    """后台执行查询并缓存结果到JSON文件"""
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        task = db.query(ExportTask).filter(ExportTask.id == task_id).first()
+        if not task:
+            return
+
+        task.status = "processing"
+        db.commit()
+
+        # 获取Zabbix配置
+        config = db.query(ZabbixConfig).filter(ZabbixConfig.id == task.zabbix_config_id).first()
+        if not config:
+            task.status = "failed"
+            task.error_message = "Zabbix配置不存在"
+            db.commit()
+            return
+
+        zabbix_service = ZabbixService.from_config(config)
+        monitor_service = MonitorService(zabbix_service)
+
+        # 执行查询（返回的是按筛选名称分组的字典）
+        grouped_data = monitor_service.get_multiple_filters_data(db, task.filter_ids, time_range)
+
+        # 展平数据为列表
+        flat_data = []
+        for filter_name, rows in grouped_data.items():
+            for row in rows:
+                row['filter_name'] = filter_name  # 添加筛选名称字段
+                flat_data.append(row)
+
+        # 保存查询结果到JSON文件
+        save_query_cache(task_id, flat_data)
+
+        task.status = "completed"
+        db.commit()
+
+        logger.info(f"查询任务 {task_id} 完成，共 {len(flat_data)} 条数据，已保存到缓存文件")
+
+    except Exception as e:
+        logger.error(f"查询任务 {task_id} 失败: {str(e)}")
+        task = db.query(ExportTask).filter(ExportTask.id == task_id).first()
+        if task:
+            task.status = "failed"
+            task.error_message = str(e)
+            db.commit()
+    finally:
+        db.close()
+
+
+@router.get("/query-task/{task_id}/data")
+async def get_query_task_data(
+    task_id: int,
+    user: User = Depends(get_current_user_required),
+    db: Session = Depends(get_db)
+):
+    """获取查询任务的数据结果"""
+    task = db.query(ExportTask).filter(ExportTask.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    # 检查权限
+    if not user.is_admin:
+        check_zabbix_access(user, task.zabbix_config_id)
+
+    if task.status != "completed":
+        raise HTTPException(status_code=400, detail=f"任务状态为{task.status}，数据未就绪")
+
+    # 从JSON文件加载缓存数据
+    cached = load_query_cache(task_id)
+    if not cached:
+        raise HTTPException(status_code=404, detail="数据缓存文件不存在，请重新查询")
+
+    return cached
+
+
+@router.delete("/query-task/{task_id}")
+async def clear_query_task_cache(
+    task_id: int,
+    user: User = Depends(get_current_user_required),
+    db: Session = Depends(get_db)
+):
+    """清除查询任务的缓存数据"""
+    task = db.query(ExportTask).filter(ExportTask.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    # 检查权限
+    if not user.is_admin:
+        check_zabbix_access(user, task.zabbix_config_id)
+
+    # 删除缓存文件
+    delete_query_cache(task_id)
+
+    # 更新任务状态
+    task.status = "cleaned"
+    db.commit()
+
+    logger.info(f"用户 {user.username} 清除查询任务缓存 (ID: {task_id})")
+
+    return {"message": "缓存已清除"}
+
+
 @router.post("/export", response_model=ExportTaskResponse)
 async def create_export_task(
     request: ExportRequest,
@@ -583,19 +875,22 @@ async def list_export_tasks(
     user: User = Depends(get_current_user_required),
     db: Session = Depends(get_db)
 ):
-    """获取导出任务历史列表（仅返回用户有权限访问的Zabbix配置的任务）"""
-    # 管理员可以看到所有任务
+    """获取导出任务历史列表（仅返回导出任务，不包括查询任务）"""
+    # 管理员可以看到所有导出任务
     if user.is_admin:
-        tasks = db.query(ExportTask).order_by(
+        tasks = db.query(ExportTask).filter(
+            ExportTask.task_type == "export"  # 只返回导出任务
+        ).order_by(
             ExportTask.created_at.desc()
         ).limit(limit).all()
     else:
-        # 普通用户只能看到自己有权限的Zabbix配置的任务
+        # 普通用户只能看到自己有权限的Zabbix配置的导出任务
         allowed_zabbix_ids = user.allowed_zabbix_ids or []
         if not allowed_zabbix_ids:
             # 如果用户没有任何Zabbix配置权限，返回空列表
             return []
         tasks = db.query(ExportTask).filter(
+            ExportTask.task_type == "export",  # 只返回导出任务
             ExportTask.zabbix_config_id.in_(allowed_zabbix_ids)
         ).order_by(
             ExportTask.created_at.desc()

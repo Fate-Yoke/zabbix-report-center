@@ -84,8 +84,7 @@ class AuthService:
             return None
         if not self.verify_password(password, user.password_hash):
             return None
-        if not user.is_active:
-            return None
+        # 不在这里检查 is_active，让调用方检查
         return user
 
     def is_first_user(self, db: Session) -> bool:

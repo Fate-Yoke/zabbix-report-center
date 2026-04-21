@@ -4,11 +4,20 @@ Zabbix Report Center RESTful API 接口文档。
 
 ## 基础信息
 
-- **Base URL**: `http://localhost:37201/api`
-- **认证方式**: JWT Token (Cookie)
+- **Base URL**: `http://localhost:38204/api`
+- **认证方式**: JWT Token（支持 Cookie 和 Bearer Token）
 - **数据格式**: JSON
 
 ## 认证
+
+### 认证方式
+
+系统支持两种认证方式：
+
+1. **Cookie 方式**：登录后 Token 自动存储在 Cookie 中
+2. **Bearer Token 方式**：在请求头中添加 `Authorization: Bearer <token>`
+
+前端 Vue 应用使用 Bearer Token 方式，传统页面使用 Cookie 方式。
 
 ### 注册
 
@@ -829,9 +838,15 @@ Content-Type: application/json
 
 ## 认证说明
 
-大部分 API 需要用户认证。认证通过 Cookie 中的 JWT Token 实现。
+大部分 API 需要用户认证。认证通过 JWT Token 实现，支持两种方式：
 
+**Cookie 方式**（传统页面）：
 登录成功后，服务器会设置 `access_token` Cookie，后续请求会自动携带。
+
+**Bearer Token 方式**（Vue 前端）：
+```http
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
 
 Token 有效期为 24 小时，过期后需要重新登录。
 

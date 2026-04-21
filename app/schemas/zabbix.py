@@ -34,6 +34,7 @@ class ZabbixConfigUpdate(BaseModel):
 class ZabbixConfigResponse(ZabbixConfigBase):
     """Zabbix配置响应模型"""
     id: int
+    username: Optional[str] = None
     is_active: bool
     created_at: datetime
 

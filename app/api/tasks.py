@@ -3,6 +3,7 @@
 """
 import os
 import logging
+import threading
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -17,7 +18,7 @@ from app.schemas.task import (
     ScheduleTaskCreate, ScheduleTaskUpdate, ScheduleTaskResponse, TaskLogResponse
 )
 from app.api.auth import get_current_user_required
-from app.services.scheduler_service import scheduler_service
+from app.services.scheduler_service import scheduler_service, execute_task
 
 router = APIRouter(prefix="/tasks", tags=["定时任务"])
 logger = logging.getLogger(__name__)
@@ -239,17 +240,19 @@ async def run_task_now(
     user: User = Depends(get_current_user_required),
     db: Session = Depends(get_db)
 ):
-    """立即执行任务"""
+    """立即执行任务（后台线程执行，不阻塞）"""
     task = db.query(ScheduleTask).filter(ScheduleTask.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
-    # 异步执行任务
-    scheduler_service.run_task_now(task_id)
+    # 使用独立线程执行任务，完全不阻塞
+    thread = threading.Thread(target=execute_task, args=(task_id,))
+    thread.daemon = True
+    thread.start()
 
     logger.info(f"用户 {user.username} 手动执行定时任务: {task.name} (ID: {task_id})")
 
-    return {"message": "任务已触发执行"}
+    return {"message": "任务已触发执行", "task_id": task_id}
 
 
 @router.get("/{task_id}/logs", response_model=List[TaskLogResponse])

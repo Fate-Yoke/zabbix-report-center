@@ -8,11 +8,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     TZ=Asia/Shanghai
 
-# 安装系统依赖
+# 安装系统依赖和 Node.js
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     default-libmysqlclient-dev \
     pkg-config \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
@@ -23,6 +26,13 @@ RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua
 
 # 复制项目文件
 COPY . .
+
+# 构建前端
+WORKDIR /app/frontend
+RUN npm install && npm run build
+
+# 返回应用目录
+WORKDIR /app
 
 # 创建导出目录
 RUN mkdir -p /app/exports

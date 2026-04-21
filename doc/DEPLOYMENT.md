@@ -281,7 +281,7 @@ chmod 700 exports
 python run.py
 ```
 
-访问 http://服务器IP:37201 测试是否正常。
+访问 http://服务器IP:38204 测试是否正常。
 
 ## 配置说明
 
@@ -397,7 +397,17 @@ sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com
 ```
 
-### 3. 配置 Nginx
+### 3. 构建前端
+
+```bash
+cd /opt/zabbix-report-center/frontend
+npm install
+npm run build
+```
+
+前端构建产物在 `frontend/dist` 目录。
+
+### 4. 配置 Nginx
 
 ```bash
 sudo nano /etc/nginx/sites-available/zabbix-report
@@ -406,8 +416,9 @@ sudo nano /etc/nginx/sites-available/zabbix-report
 内容如下：
 
 ```nginx
-upstream zabbix_report {
-    server 127.0.0.1:37201;
+# 后端 API 上游
+upstream zabbix_report_api {
+    server 127.0.0.1:38204;
 }
 
 server {
@@ -436,17 +447,21 @@ server {
     # 客户端上传大小限制
     client_max_body_size 50M;
 
+    # 前端静态文件
     location / {
-        proxy_pass http://zabbix_report;
+        root /opt/zabbix-report-center/frontend/dist;
+        try_files $uri $uri/ /index.html;
+        expires 1d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # API 代理
+    location /api/ {
+        proxy_pass http://zabbix_report_api;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
-        # WebSocket 支持（如果需要）
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
 
         # 超时设置
         proxy_connect_timeout 60s;
@@ -454,16 +469,15 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # 静态文件缓存
-    location /static/ {
-        proxy_pass http://zabbix_report;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
+    # 导出文件下载
+    location /exports/ {
+        proxy_pass http://zabbix_report_api;
+        proxy_set_header Host $host;
     }
 }
 ```
 
-### 4. 启用配置
+### 5. 启用配置
 
 ```bash
 # 创建软链接
@@ -623,7 +637,7 @@ sudo systemctl start zabbix-report
 systemctl status zabbix-report
 
 # 检查端口监听
-netstat -tlnp | grep 37201
+netstat -tlnp | grep 38204
 
 # 检查进程
 ps aux | grep python
@@ -648,7 +662,7 @@ pip install gunicorn
 修改启动命令：
 
 ```bash
-gunicorn -w 4 -k uvicorn.workers.UvicornWorker app:app --bind 0.0.0.0:37201
+gunicorn -w 4 -k uvicorn.workers.UvicornWorker app:app --bind 0.0.0.0:38204
 ```
 
 ### 2. 启用 Nginx 缓存
@@ -706,7 +720,7 @@ MAX_CONCURRENT_TASKS = 5
 sudo journalctl -u zabbix-report -n 100 --no-pager
 
 # 检查端口占用
-sudo lsof -i :37201
+sudo lsof -i :38204
 
 # 检查文件权限
 ls -la /opt/zabbix-report-center
@@ -757,7 +771,7 @@ sudo setsebool -P httpd_can_network_connect 1
 # 只允许 Nginx 访问应用端口
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
-sudo ufw deny 37201/tcp
+sudo ufw deny 38204/tcp
 sudo ufw enable
 ```
 
@@ -821,6 +835,6 @@ journalctl -u zabbix-report -n 50
 
 遇到问题时：
 1. 查看日志：`docker-compose logs -f app` 或 `journalctl -u zabbix-report -f`
-2. 检查端口：`netstat -tlnp | grep 37201`
+2. 检查端口：`netstat -tlnp | grep 38204`
 3. 检查进程：`ps aux | grep python`
 4. 提交 Issue 并附上日志

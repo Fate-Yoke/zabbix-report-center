@@ -46,3 +46,16 @@ logs/
 # 操作系统
 .DS_Store
 Thumbs.db
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+
+# 缓存目录
+alerts_cache/
+dashboard_cache/
+query_cache/
+
+# 导出文件
+exports/*.xlsx
+exports/*.xls

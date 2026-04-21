@@ -20,7 +20,7 @@
 ### JWT Token
 - 算法：HS256
 - 有效期：24 小时
-- Cookie 存储
+- 支持 Cookie 和 Bearer Token 两种认证方式
 
 ## 生产环境配置
 
@@ -82,7 +82,7 @@ server {
     ssl_certificate_key /path/to/key.pem;
     
     location / {
-        proxy_pass http://127.0.0.1:37201;
+        proxy_pass http://127.0.0.1:38204;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
@@ -93,7 +93,7 @@ server {
 
 ```bash
 ufw allow 443/tcp
-ufw deny 37201/tcp
+ufw deny 38204/tcp
 ```
 
 ### 限制访问 IP

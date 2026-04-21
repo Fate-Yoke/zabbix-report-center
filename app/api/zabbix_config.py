@@ -90,7 +90,18 @@ async def get_config(
     config = db.query(ZabbixConfig).filter(ZabbixConfig.id == config_id).first()
     if not config:
         raise HTTPException(status_code=404, detail="配置不存在")
-    return config
+
+    # 解密用户名返回给前端显示
+    response_data = {
+        "id": config.id,
+        "name": config.name,
+        "url": config.url,
+        "auth_type": config.auth_type,
+        "username": encryption_service.decrypt(config.username) if config.username else None,
+        "is_active": config.is_active,
+        "created_at": config.created_at
+    }
+    return response_data
 
 
 @router.put("/{config_id}", response_model=ZabbixConfigResponse)

@@ -40,6 +40,8 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-zabbix-encryption-key-32bytes!}
       # 调试模式
       DEBUG: ${DEBUG:-false}
+      # 端口
+      PORT: "37201"
       TZ: Asia/Shanghai
     ports:
       - "37201:37201"

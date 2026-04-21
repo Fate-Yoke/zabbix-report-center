@@ -12,6 +12,10 @@ ENV/
 dist/
 build/
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
 # IDE
 .idea/
 .vscode/
@@ -25,10 +29,12 @@ build/
 # Docker
 Dockerfile
 docker-compose.yml
+docker-compose.yml.example
 .dockerignore
 
 # Local files
 .env
+.env.example
 .env.local
 *.db
 *.sqlite
@@ -45,11 +51,13 @@ exports/
 # Cache
 .cache/
 .pytest_cache/
+alerts_cache/
+dashboard_cache/
+query_cache/
 
 # Documentation
 *.md
-docs.html
-INSTALL.html
+doc/
 
 # Test files
 test_*.py

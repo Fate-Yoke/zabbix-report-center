@@ -95,6 +95,17 @@ async def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
+    # 如果要禁用用户，检查是否会导致没有启用的管理员
+    if user_data.is_active is not None and not user_data.is_active:
+        if user.is_admin:
+            # 检查启用的管理员数量
+            active_admin_count = db.query(User).filter(
+                User.is_admin == True,
+                User.is_active == True
+            ).count()
+            if active_admin_count <= 1:
+                raise HTTPException(status_code=400, detail="不能禁用最后一个启用的管理员")
+
     # 更新字段
     if user_data.username is not None:
         # 检查用户名是否被其他用户使用

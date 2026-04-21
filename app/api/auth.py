@@ -58,6 +58,11 @@ async def get_current_user(
         return None
 
     user = auth_service.get_user_by_id(db, user_id)
+
+    # 检查用户是否被禁用，如果禁用则返回None（强制退出）
+    if user and not user.is_active:
+        return None
+
     return user
 
 

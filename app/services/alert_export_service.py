@@ -92,7 +92,7 @@ def do_alert_export(task_id: int):
 
         # 生成文件名
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"{config.name}_alerts_{timestamp}.xlsx"
+        filename = f"{config.name}_alerts_export_{timestamp}.xlsx"
         file_path = os.path.join(EXPORT_DIR, filename)
 
         # 写入Excel

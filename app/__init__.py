@@ -1,10 +1,10 @@
 """
 FastAPI应用初始化
 """
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
 from app.config import APP_NAME, DEBUG
@@ -16,7 +16,6 @@ from app.api import (
 )
 from app.api.system_settings import router as system_router
 from app.api.logs import router as logs_router
-from app.api.auth import get_current_user
 
 # 创建应用
 app = FastAPI(
@@ -24,15 +23,28 @@ app = FastAPI(
     debug=DEBUG
 )
 
-# 静态文件
-static_path = Path(__file__).parent / "static"
-static_path.mkdir(exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+# 添加CORS支持
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:37201",  # Vue前端开发地址
+        "http://127.0.0.1:37201",  # Vue前端开发地址（备用）
+        "*",  # 生产环境允许所有来源（可根据需要限制）
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# 模板
-templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+# Vue 前端构建目录
+FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 
-# 注册路由
+# 挂载前端 assets 目录
+assets_path = FRONTEND_DIST / "assets"
+if assets_path.exists():
+    app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
+
+# 注册 API 路由
 app.include_router(auth_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 app.include_router(monitor_router, prefix="/api")
@@ -44,160 +56,24 @@ app.include_router(logs_router)
 app.include_router(alerts_router)
 
 
-# 页面路由
-@app.get("/")
-async def index(request: Request, user=Depends(get_current_user)):
-    """首页"""
-    if not user:
-        return RedirectResponse(url="/login")
-    return templates.TemplateResponse("dashboard/index.html", {
-        "request": request,
-        "current_user": user
-    })
+# SPA fallback - 所有非 API/非静态路由返回 index.html
+@app.get("/{path:path}")
+async def spa_fallback(path: str):
+    """
+    SPA fallback: 对于所有非 API 路由，返回 Vue 前端的 index.html
+    """
+    # 尝试返回请求的静态文件（如 favicon.svg, icons.svg 等）
+    file_path = FRONTEND_DIST / path
+    if file_path.exists() and file_path.is_file():
+        return FileResponse(file_path)
 
+    # 否则返回 index.html（SPA 入口）
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
 
-@app.get("/login")
-async def login_page(request: Request, user=Depends(get_current_user)):
-    """登录页面"""
-    if user:
-        return RedirectResponse(url="/")
-    return templates.TemplateResponse("auth/login.html", {
-        "request": request,
-        "current_user": None
-    })
-
-
-@app.get("/register")
-async def register_page(request: Request, user=Depends(get_current_user)):
-    """注册页面"""
-    if user:
-        return RedirectResponse(url="/")
-    return templates.TemplateResponse("auth/register.html", {
-        "request": request,
-        "current_user": None
-    })
-
-
-@app.get("/logout")
-async def logout():
-    """退出登录"""
-    response = RedirectResponse(url="/login")
-    # 清除cookie
-    response.delete_cookie("access_token")
-    return response
-
-
-@app.get("/set-cookie")
-async def set_cookie(token: str):
-    """设置登录cookie"""
-    response = RedirectResponse(url="/")
-    response.set_cookie(
-        key="access_token",
-        value=token,
-        httponly=True,
-        max_age=60 * 60 * 24,  # 24小时
-        samesite="lax"
-    )
-    return response
-
-
-@app.get("/monitor")
-async def monitor_page(request: Request, user=Depends(get_current_user)):
-    """监控信息页面"""
-    if not user:
-        return RedirectResponse(url="/login")
-    return templates.TemplateResponse("monitor/index.html", {
-        "request": request,
-        "current_user": user
-    })
-
-
-@app.get("/profile")
-async def profile_page(request: Request, user=Depends(get_current_user)):
-    """个人信息页面"""
-    if not user:
-        return RedirectResponse(url="/login")
-    return templates.TemplateResponse("profile.html", {
-        "request": request,
-        "current_user": user
-    })
-
-
-@app.get("/tasks")
-async def tasks_page(request: Request, user=Depends(get_current_user)):
-    """定时任务页面"""
-    if not user:
-        return RedirectResponse(url="/login")
-    return templates.TemplateResponse("tasks/index.html", {
-        "request": request,
-        "current_user": user
-    })
-
-
-@app.get("/alerts")
-async def alerts_page(request: Request, user=Depends(get_current_user)):
-    """告警信息页面"""
-    if not user:
-        return RedirectResponse(url="/login")
-    return templates.TemplateResponse("alerts/index.html", {
-        "request": request,
-        "current_user": user
-    })
-
-
-@app.get("/admin/users")
-async def users_admin_page(request: Request, user=Depends(get_current_user)):
-    """用户管理页面"""
-    if not user or not user.is_admin:
-        return RedirectResponse(url="/")
-    return templates.TemplateResponse("admin/users.html", {
-        "request": request,
-        "current_user": user
-    })
-
-
-@app.get("/admin/zabbix-config")
-async def zabbix_config_page(request: Request, user=Depends(get_current_user)):
-    """Zabbix配置页面"""
-    if not user or not user.is_admin:
-        return RedirectResponse(url="/")
-    return templates.TemplateResponse("admin/zabbix_config.html", {
-        "request": request,
-        "current_user": user
-    })
-
-
-@app.get("/admin/email-config")
-async def email_config_page(request: Request, user=Depends(get_current_user)):
-    """邮件配置页面"""
-    if not user or not user.is_admin:
-        return RedirectResponse(url="/")
-    return templates.TemplateResponse("admin/email_config.html", {
-        "request": request,
-        "current_user": user
-    })
-
-
-@app.get("/admin/system")
-async def system_settings_page(request: Request, user=Depends(get_current_user)):
-    """系统设置页面"""
-    if not user or not user.is_admin:
-        return RedirectResponse(url="/")
-    return templates.TemplateResponse("admin/system.html", {
-        "request": request,
-        "current_user": user
-    })
-
-
-@app.get("/admin/logs")
-async def logs_page(request: Request, user=Depends(get_current_user)):
-    """系统日志页面"""
-    if not user or not user.is_admin:
-        return RedirectResponse(url="/")
-    return templates.TemplateResponse("logs/index.html", {
-        "request": request,
-        "current_user": user
-    })
+    # 如果前端未构建，返回提示
+    return {"error": "Frontend not built. Run 'npm run build' in frontend directory."}
 
 
 # 初始化数据库

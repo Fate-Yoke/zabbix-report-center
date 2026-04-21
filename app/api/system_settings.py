@@ -62,10 +62,14 @@ async def set_registration_status(
 ):
     """设置注册状态（管理员）"""
     system_service.set_registration_allowed(db, data.allowed)
+    system_service.set_activation_required(db, data.require_activation)
 
-    logger.info(f"管理员 {admin.username} 修改注册设置: 允许注册={data.allowed}")
+    logger.info(f"管理员 {admin.username} 修改注册设置: 允许注册={data.allowed}, 需要激活={data.require_activation}")
 
-    return {"message": f"注册功能已{'开启' if data.allowed else '关闭'}"}
+    return {
+        "allowed": data.allowed,
+        "require_activation": data.require_activation
+    }
 
 
 @router.put("/activation")
