@@ -81,7 +81,8 @@ def main():
     scheduler_service.load_all_tasks()
 
     # 启动Web服务
-    # Docker 环境使用 37201，本地开发使用 38204
+    # Docker 环境：前端构建后由 FastAPI 托管，统一使用 37201 端口
+    # 本地开发：后端运行在 38204，前端开发服务器运行在 37201（代理到后端）
     port = int(os.getenv("PORT", "38204"))
     print("启动Web服务...")
     print(f"访问地址: http://localhost:{port}")
