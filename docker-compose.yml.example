@@ -40,9 +40,11 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-zabbix-encryption-key-32bytes!}
       # 调试模式
       DEBUG: ${DEBUG:-false}
+      # 端口
+      PORT: "37201"
       TZ: Asia/Shanghai
     ports:
-      - "37201:38204"
+      - "37201:37201"
     volumes:
       # 持久化导出文件
       - exports_data:/app/exports

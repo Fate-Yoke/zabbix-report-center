@@ -81,15 +81,17 @@ def main():
     scheduler_service.load_all_tasks()
 
     # 启动Web服务
+    # Docker 环境使用 37201，本地开发使用 38204
+    port = int(os.getenv("PORT", "38204"))
     print("启动Web服务...")
-    print("访问地址: http://localhost:38204")
+    print(f"访问地址: http://localhost:{port}")
     print("首次注册的用户将自动成为管理员")
 
     try:
         uvicorn.run(
             "app:app",
             host="0.0.0.0",
-            port=38204,
+            port=port,
             reload=False
         )
     finally:

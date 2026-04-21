@@ -38,7 +38,7 @@ WORKDIR /app
 RUN mkdir -p /app/exports
 
 # 暴露端口
-EXPOSE 38204
+EXPOSE 37201
 
 # 启动命令
 CMD ["python", "run.py"]
