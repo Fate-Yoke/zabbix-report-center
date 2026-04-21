@@ -93,17 +93,6 @@ npm run dev
 
 访问 http://localhost:37201 即可使用完整应用。
 
-### 生产部署
-
-```bash
-# 构建前端
-cd frontend
-npm run build
-
-# 前端构建产物在 frontend/dist 目录
-# 可使用 Nginx 托管，或由后端服务托管
-```
-
 ### Docker 部署
 
 环境要求：Docker + Docker Compose
