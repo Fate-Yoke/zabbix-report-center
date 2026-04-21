@@ -23,7 +23,8 @@ class MonitorFilter(Base):
     # match_type: "exact" 精确匹配, "fuzzy" 模糊匹配
 
     history_type = Column(Integer, default=0)  # 历史数据类型
-    is_network = Column(Boolean, default=False)  # 是否网络流量(需单位转换)
+    is_network = Column(Boolean, default=False)  # 是否网络流量(需单位转换 bps→Mbps)
+    is_storage = Column(Boolean, default=False)  # 是否存储(需单位转换 B→GB)
     thresholds = Column(JSON, nullable=True)  # 阈值配置 {"green": 75, "yellow": 85}
     zabbix_config_ids = Column(JSON, default=list)  # 关联的Zabbix配置ID列表
     created_by = Column(Integer, nullable=True)

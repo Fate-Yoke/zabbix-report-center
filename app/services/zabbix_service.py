@@ -199,8 +199,8 @@ class ZabbixService:
 
     def get_item_stats(self, hostid: str, item_pattern: str,
                        history_type: int = 0, use_regex: bool = False,
-                       is_network: bool = False, time_from: int = None,
-                       time_till: int = None) -> List[Dict]:
+                       is_network: bool = False, is_storage: bool = False,
+                       time_from: int = None, time_till: int = None) -> List[Dict]:
         """
         获取监控项统计数据
         返回: [{"name": str, "current": float, "max": float, "min": float, "avg": float}]
@@ -232,9 +232,13 @@ class ZabbixService:
                 if not values:
                     continue
 
-                # 网络流量需要单位转换
+                # 网络流量需要单位转换 (bps -> Mbps)
                 if is_network:
                     values = [round(v / 1_000_000, 4) for v in values]
+
+                # 存储需要单位转换 (B -> GB)
+                if is_storage:
+                    values = [round(v / 1_073_741_824, 6) for v in values]
 
                 results.append({
                     "name": item["name"],

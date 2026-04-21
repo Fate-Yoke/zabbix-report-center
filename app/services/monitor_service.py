@@ -60,6 +60,7 @@ class MonitorService:
                         history_type=filter_config.history_type,
                         use_regex=True,
                         is_network=filter_config.is_network,
+                        is_storage=getattr(filter_config, 'is_storage', False),
                         time_from=time_from,
                         time_till=time_till
                     )
@@ -110,6 +111,7 @@ class MonitorService:
                         history_type=filter_config.history_type,
                         use_regex=use_regex,
                         is_network=filter_config.is_network,
+                        is_storage=getattr(filter_config, 'is_storage', False),
                         time_from=time_from,
                         time_till=time_till
                     )

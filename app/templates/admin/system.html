@@ -116,7 +116,8 @@
                 showToast('成功', `注册功能已${allowed ? '开启' : '关闭'}`, 'success');
             } else {
                 const result = await response.json();
-                showToast('错误', result.detail || '操作失败', 'error');
+                const errorMsg = typeof result.detail === 'object' ? JSON.stringify(result.detail) : (result.detail || '操作失败');
+                showToast('错误', errorMsg, 'error');
                 this.checked = !allowed;
                 label.textContent = !allowed ? '开启' : '关闭';
             }
@@ -146,7 +147,8 @@
                 showToast('成功', `注册后${requireActivation ? '需要' : '不需要'}管理员启用账户`, 'success');
             } else {
                 const result = await response.json();
-                showToast('错误', result.detail || '操作失败', 'error');
+                const errorMsg = typeof result.detail === 'object' ? JSON.stringify(result.detail) : (result.detail || '操作失败');
+                showToast('错误', errorMsg, 'error');
                 this.checked = !requireActivation;
                 label.textContent = !requireActivation ? '开启' : '关闭';
             }

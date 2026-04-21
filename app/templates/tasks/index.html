@@ -303,7 +303,7 @@
 
             // 填充下拉框
             const zcSelect = document.getElementById('zabbix-config');
-            zcSelect.innerHTML = '';
+            zcSelect.innerHTML = '<option value="">请选择</option>';
             zabbixConfigs.forEach(c => {
                 zcSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
             });

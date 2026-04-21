@@ -140,3 +140,10 @@ def init_db():
                     conn.commit()
                 except Exception:
                     pass
+
+            if "is_storage" not in filter_columns:
+                try:
+                    conn.execute(text("ALTER TABLE monitor_filters ADD COLUMN is_storage BOOLEAN DEFAULT 0"))
+                    conn.commit()
+                except Exception:
+                    pass

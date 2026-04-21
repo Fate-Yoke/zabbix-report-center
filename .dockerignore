@@ -36,7 +36,7 @@ docker-compose.yml
 
 # Logs
 *.log
-logs/
+/logs/
 
 # Exports
 exports/

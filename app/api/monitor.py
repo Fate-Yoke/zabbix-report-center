@@ -216,6 +216,7 @@ async def list_filters(
             item_patterns=item_patterns,
             history_type=f.history_type,
             is_network=f.is_network,
+            is_storage=getattr(f, 'is_storage', False),
             zabbix_config_ids=f.zabbix_config_ids or [],
             use_regex=f.use_regex or False,
             regex_pattern=f.regex_pattern,
@@ -260,6 +261,7 @@ async def create_filter(
         item_patterns=[p.dict() for p in filter_data.item_patterns] if filter_data.item_patterns else None,
         history_type=filter_data.history_type,
         is_network=filter_data.is_network,
+        is_storage=filter_data.is_storage,
         thresholds=filter_data.thresholds,
         zabbix_config_ids=filter_data.zabbix_config_ids,
         created_by=user.id
@@ -326,6 +328,8 @@ async def update_filter(
         filter_obj.history_type = filter_data.history_type
     if filter_data.is_network is not None:
         filter_obj.is_network = filter_data.is_network
+    if filter_data.is_storage is not None:
+        filter_obj.is_storage = filter_data.is_storage
     if filter_data.thresholds is not None:
         filter_obj.thresholds = filter_data.thresholds
     if filter_data.zabbix_config_ids is not None:
@@ -447,6 +451,7 @@ async def get_monitor_data_stream(
                                 history_type=filter_config.history_type,
                                 use_regex=True,
                                 is_network=filter_config.is_network,
+                                is_storage=getattr(filter_config, 'is_storage', False),
                                 time_from=time_from,
                                 time_till=time_till
                             )
@@ -484,6 +489,7 @@ async def get_monitor_data_stream(
                                 history_type=filter_config.history_type,
                                 use_regex=use_regex,
                                 is_network=filter_config.is_network,
+                                is_storage=getattr(filter_config, 'is_storage', False),
                                 time_from=time_from,
                                 time_till=time_till
                             )

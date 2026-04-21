@@ -257,6 +257,7 @@
         const isAdmin = document.getElementById('user-is-admin').checked;
 
         const data = {
+            username: document.getElementById('user-username').value,
             email: document.getElementById('user-email').value,
             is_admin: isAdmin,
             is_active: document.getElementById('user-is-active').checked
@@ -295,7 +296,8 @@
                 loadUsers();
             } else {
                 const result = await response.json();
-                alert('保存失败: ' + result.detail);
+                const errorMsg = typeof result.detail === 'object' ? JSON.stringify(result.detail) : (result.detail || '保存失败');
+                alert('保存失败: ' + errorMsg);
             }
         } catch (error) {
             alert('保存失败: ' + error.message);

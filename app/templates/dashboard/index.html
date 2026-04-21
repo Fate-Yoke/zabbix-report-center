@@ -8,6 +8,7 @@
     <div class="d-flex align-items-center gap-3">
         <small class="text-muted" id="last-update-time">-</small>
         <select class="form-select form-select-sm" id="cache-time-select" style="width: auto;" onchange="updateCacheTime()">
+            <option value="manual">手动刷新</option>
             <option value="60">缓存1分钟</option>
             <option value="180">缓存3分钟</option>
             <option value="300" selected>缓存5分钟</option>
@@ -137,6 +138,21 @@
     let autoRefreshTimer = null;  // 自动刷新定时器
     let cacheTimeSeconds = 300;  // 默认缓存5分钟
 
+    // 从localStorage加载缓存时间设置
+    function loadCacheTimeSetting() {
+        const saved = localStorage.getItem('dashboard_cache_time');
+        if (saved) {
+            cacheTimeSeconds = saved;
+            const select = document.getElementById('cache-time-select');
+            select.value = saved;
+        }
+    }
+
+    // 保存缓存时间设置到localStorage
+    function saveCacheTimeSetting(seconds) {
+        localStorage.setItem('dashboard_cache_time', seconds.toString());
+    }
+
     // 分页相关变量
     let allOfflineHosts = [];
     let allOnlineHosts = [];
@@ -147,18 +163,29 @@
     // 更新缓存时间
     function updateCacheTime() {
         const select = document.getElementById('cache-time-select');
-        cacheTimeSeconds = parseInt(select.value);
+        cacheTimeSeconds = select.value;
 
-        // 重新启动自动刷新定时器
-        startAutoRefresh();
+        // 保存到localStorage
+        saveCacheTimeSetting(cacheTimeSeconds);
 
-        // 如果选择不使用缓存，立即刷新
-        if (cacheTimeSeconds === 0) {
-            const configId = getSelectedZabbixConfigId();
-            if (configId) {
-                loadDashboard(configId, true);
-            }
+        // 停止自动刷新
+        stopAutoRefresh();
+
+        // 如果选择手动刷新，不加载数据
+        if (cacheTimeSeconds === 'manual') {
+            return;
         }
+
+        // 其他选项，立即加载数据
+        const configId = getSelectedZabbixConfigId();
+        if (configId) {
+            // 不使用缓存时强制刷新，其他使用缓存
+            const forceRefresh = (cacheTimeSeconds === '0' || parseInt(cacheTimeSeconds) === 0);
+            loadDashboard(configId, forceRefresh);
+        }
+
+        // 启动自动刷新定时器
+        startAutoRefresh();
     }
 
     // 加载仪表盘数据
@@ -186,7 +213,13 @@
         refreshBtn.disabled = true;
 
         try {
-            const url = `/api/monitor/dashboard?zabbix_config_id=${configId}&force_refresh=${forceRefresh}&cache_time=${cacheTimeSeconds}`;
+            // 获取实际缓存时间（手动刷新时使用默认5分钟缓存）
+            let actualCacheTime = 300;
+            if (cacheTimeSeconds !== 'manual') {
+                actualCacheTime = parseInt(cacheTimeSeconds) || 300;
+            }
+
+            const url = `/api/monitor/dashboard?zabbix_config_id=${configId}&force_refresh=${forceRefresh}&cache_time=${actualCacheTime}`;
             const response = await fetch(url);
 
             if (!response.ok) {
@@ -356,10 +389,12 @@
             clearInterval(autoRefreshTimer);
         }
 
-        // 如果选择不使用缓存，不启动自动刷新
-        if (cacheTimeSeconds === 0) {
+        // 如果选择手动刷新或不使用缓存，不启动自动刷新
+        if (cacheTimeSeconds === 'manual' || cacheTimeSeconds === '0' || parseInt(cacheTimeSeconds) === 0) {
             return;
         }
+
+        const seconds = parseInt(cacheTimeSeconds);
 
         // 根据选择的缓存时间自动刷新
         autoRefreshTimer = setInterval(() => {
@@ -368,7 +403,7 @@
                 console.log('自动刷新数据...');
                 loadDashboard(configId, false);  // 不强制刷新，使用缓存
             }
-        }, cacheTimeSeconds * 1000);
+        }, seconds * 1000);
     }
 
     // 停止自动刷新
@@ -389,27 +424,40 @@
 
     // 监听全局配置加载完成事件
     window.addEventListener('zabbixConfigLoaded', function() {
+        loadCacheTimeSetting();
         const configId = getSelectedZabbixConfigId();
         if (configId) {
+            // 手动模式也加载数据，只是不自动刷新
             loadDashboard(configId);
-            startAutoRefresh();  // 启动自动刷新
+            if (cacheTimeSeconds !== 'manual') {
+                startAutoRefresh();
+            }
         }
     });
 
     // 监听全局配置变化事件
     window.addEventListener('zabbixConfigChanged', function(e) {
+        // 手动模式也加载数据，只是不自动刷新
         loadDashboard(e.detail.configId);
-        startAutoRefresh();  // 重新启动自动刷新
+        if (cacheTimeSeconds !== 'manual') {
+            startAutoRefresh();
+        }
     });
 
     // 页面加载时，如果配置已加载则直接加载数据
     document.addEventListener('DOMContentLoaded', function() {
+        // 加载缓存时间设置
+        loadCacheTimeSetting();
+
         // 等待一下确保全局配置已加载
         setTimeout(function() {
             const configId = getSelectedZabbixConfigId();
             if (configId) {
+                // 手动模式也加载数据，只是不自动刷新
                 loadDashboard(configId);
-                startAutoRefresh();  // 启动自动刷新
+                if (cacheTimeSeconds !== 'manual') {
+                    startAutoRefresh();
+                }
             }
         }, 500);
     });

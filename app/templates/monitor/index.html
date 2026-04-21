@@ -120,7 +120,7 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">历史数据类型</label>
                                 <select class="form-select" id="history-type">
@@ -133,14 +133,18 @@
                                 <div class="form-text">指定Zabbix历史数据类型，大部分性能指标使用数值(浮点)</div>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label">网络流量</label>
-                                <select class="form-select" id="is-network">
-                                    <option value="false">否</option>
-                                    <option value="true">是(自动转换单位)</option>
+                                <label class="form-label">单位转换</label>
+                                <select class="form-select" id="unit-conversion">
+                                    <option value="none">否</option>
+                                    <option value="network">网络(bps→Mbps)</option>
+                                    <option value="storage">存储(B→GB)</option>
                                 </select>
-                                <div class="form-text">选"是"时自动将字节转换为KB/MB/GB，适用于网络流量和磁盘IO</div>
+                                <div class="form-text">
+                                    <strong>网络</strong>：将bps转换为Mbps，适用于网络流量、磁盘IO等<br>
+                                    <strong>存储</strong>：将B转换为GB，适用于磁盘容量、文件大小等
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -278,7 +282,7 @@
         document.getElementById('filter-description').value = '';
         document.getElementById('history-type').value = '0';
         document.getElementById('use-regex').checked = false;
-        document.getElementById('is-network').value = 'false';
+        document.getElementById('unit-conversion').value = 'none';
         document.getElementById('filterModalTitle').textContent = '新建筛选配置';
         document.getElementById('regex-pattern').value = '';
 
@@ -332,7 +336,17 @@
         document.getElementById('filter-description').value = filter.description || '';
         document.getElementById('history-type').value = filter.history_type.toString();
         document.getElementById('use-regex').checked = filter.use_regex || false;
-        document.getElementById('is-network').value = filter.is_network.toString();
+
+        // 设置单位转换选项
+        const unitConversion = document.getElementById('unit-conversion');
+        if (filter.is_storage) {
+            unitConversion.value = 'storage';
+        } else if (filter.is_network) {
+            unitConversion.value = 'network';
+        } else {
+            unitConversion.value = 'none';
+        }
+
         document.getElementById('filterModalTitle').textContent = '编辑筛选配置';
 
         // 切换显示模式
@@ -558,12 +572,15 @@
         }
 
         const useRegex = document.getElementById('use-regex').checked;
+        const unitConversion = document.getElementById('unit-conversion').value;
+
         let data = {
             name: name,
             description: document.getElementById('filter-description').value,
             history_type: parseInt(document.getElementById('history-type').value),
             use_regex: useRegex,
-            is_network: document.getElementById('is-network').value === 'true',
+            is_network: unitConversion === 'network',
+            is_storage: unitConversion === 'storage',
         };
 
         if (useRegex) {

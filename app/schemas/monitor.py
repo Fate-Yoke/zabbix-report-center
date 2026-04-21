@@ -21,6 +21,7 @@ class MonitorFilterBase(BaseModel):
     item_patterns: Optional[List[ItemPattern]] = None  # 监控项列表（use_regex=False时使用）
     history_type: int = 0
     is_network: bool = False
+    is_storage: bool = False
     thresholds: Optional[Dict[str, Any]] = None  # {"green": 75, "yellow": 85}
     zabbix_config_ids: List[int] = []  # 关联的Zabbix配置ID列表
 
@@ -39,6 +40,7 @@ class MonitorFilterUpdate(BaseModel):
     item_patterns: Optional[List[ItemPattern]] = None
     history_type: Optional[int] = None
     is_network: Optional[bool] = None
+    is_storage: Optional[bool] = None
     thresholds: Optional[Dict[str, Any]] = None
     zabbix_config_ids: Optional[List[int]] = None
 
