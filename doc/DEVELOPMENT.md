@@ -5,7 +5,7 @@
 ### 环境要求
 
 - Python 3.8+
-- Node.js 18+
+- Node.js 20.19+
 - MySQL / SQLite（可选）
 
 ### 后端开发
