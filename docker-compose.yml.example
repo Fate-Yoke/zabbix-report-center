@@ -42,7 +42,7 @@ services:
       DEBUG: ${DEBUG:-false}
       TZ: Asia/Shanghai
     ports:
-      - "38204:38204"
+      - "37201:38204"
     volumes:
       # 持久化导出文件
       - exports_data:/app/exports
