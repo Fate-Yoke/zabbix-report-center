@@ -153,7 +153,7 @@ docker-compose down
 docker-compose restart
 ```
 
-访问 http://localhost:38204，首次注册的用户自动成为管理员。
+访问 http://localhost:37201，首次注册的用户自动成为管理员。
 
 ## 配置
 

@@ -116,7 +116,7 @@ start.bat
 
 ### 5. 访问系统
 
-打开浏览器访问：http://localhost:38204
+打开浏览器访问：http://localhost:37201
 
 首次注册的用户将自动成为管理员。
 
