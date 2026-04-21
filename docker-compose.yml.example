@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: zabbix-report-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-zabbix123456}
+      MYSQL_DATABASE: zabbix_report_center
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zabbix Report Center 应用
+  app:
+    build: .
+    container_name: zabbix-report-center
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # 数据库配置
+      DATABASE_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-zabbix123456}@mysql:3306/zabbix_report_center
+      # JWT 密钥（生产环境请修改）
+      SECRET_KEY: ${SECRET_KEY:-zabbix-report-center-secret-key-2024-please-change}
+      # 加密密钥（生产环境请修改，必须是32字节）
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-zabbix-encryption-key-32bytes!}
+      # 调试模式
+      DEBUG: ${DEBUG:-false}
+      TZ: Asia/Shanghai
+    ports:
+      - "38204:38204"
+    volumes:
+      # 持久化导出文件
+      - exports_data:/app/exports
+
+volumes:
+  mysql_data:
+  exports_data:

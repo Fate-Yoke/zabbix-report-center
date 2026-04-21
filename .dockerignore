@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+docker-compose.yml.example
+.dockerignore
+
+# Local files
+.env
+.env.example
+.env.local
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+/logs/
+
+# Exports
+exports/
+*.xlsx
+
+# Cache
+.cache/
+.pytest_cache/
+alerts_cache/
+dashboard_cache/
+query_cache/
+
+# Documentation
+*.md
+doc/
+
+# Test files
+test_*.py
+
+# OS files
+.DS_Store
+Thumbs.db

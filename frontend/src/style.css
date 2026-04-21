@@ -1,0 +1,125 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* 认证页面背景 */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 450px;
+  padding: 1rem;
+}
+
+.auth-card {
+  background: white;
+  border-radius: 1.5rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.auth-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 2.5rem 2rem;
+  text-align: center;
+  color: white;
+}
+
+.auth-body {
+  padding: 2.5rem 2rem;
+}
+
+/* 布局样式 */
+.app-layout {
+  height: 100vh;
+}
+
+.app-header {
+  background: #409eff;
+  color: white;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+}
+
+.app-aside {
+  background: #304156;
+}
+
+.app-main {
+  background: #f0f2f5;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* 侧边栏导航 */
+.sidebar-menu {
+  border-right: none;
+  background: #304156;
+}
+
+.sidebar-menu .el-menu-item {
+  color: #bfcbd9;
+}
+
+.sidebar-menu .el-menu-item:hover,
+.sidebar-menu .el-menu-item.is-active {
+  background: #263445;
+  color: #409eff;
+}
+
+/* 卡片样式 */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.page-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 统计卡片 */
+.stat-card {
+  text-align: center;
+  padding: 20px;
+}
+
+.stat-card .stat-icon {
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+.stat-card .stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.stat-card .stat-label {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
