@@ -200,19 +200,54 @@
     // 保存配置
     document.getElementById('save-config').addEventListener('click', async function() {
         const configId = document.getElementById('config-id').value;
+        const name = document.getElementById('config-name').value.trim();
+        const apiUrl = document.getElementById('config-url').value.trim();
+        const authType = document.getElementById('config-auth-type').value;
+
+        // 前端验证
+        if (!name) {
+            alert('请输入配置名称');
+            return;
+        }
+        if (!apiUrl) {
+            alert('请输入Zabbix API地址');
+            return;
+        }
+
+        if (authType === 'token') {
+            const token = document.getElementById('config-token').value.trim();
+            if (!configId && !token) {
+                alert('请输入API Token');
+                return;
+            }
+        } else {
+            const username = document.getElementById('config-username').value.trim();
+            const password = document.getElementById('config-password').value;
+            if (!configId && !username) {
+                alert('请输入用户名');
+                return;
+            }
+            if (!configId && !password) {
+                alert('请输入密码');
+                return;
+            }
+        }
 
         const data = {
-            name: document.getElementById('config-name').value,
-            url: document.getElementById('config-url').value,
-            auth_type: document.getElementById('config-auth-type').value,
+            name: name,
+            url: apiUrl,
+            auth_type: authType,
             is_active: document.getElementById('config-is-active').checked
         };
 
-        if (data.auth_type === 'token') {
-            data.token = document.getElementById('config-token').value;
+        if (authType === 'token') {
+            const token = document.getElementById('config-token').value.trim();
+            if (token) data.token = token;
         } else {
-            data.username = document.getElementById('config-username').value;
-            data.password = document.getElementById('config-password').value;
+            const username = document.getElementById('config-username').value.trim();
+            const password = document.getElementById('config-password').value;
+            if (username) data.username = username;
+            if (password) data.password = password;
         }
 
         const url = configId ? `/api/zabbix-config/${configId}` : '/api/zabbix-config';

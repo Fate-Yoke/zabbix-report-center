@@ -43,6 +43,11 @@ async def create_config(
     db: Session = Depends(get_db)
 ):
     """创建邮件配置（管理员）"""
+    # 检查名称是否已存在
+    existing = db.query(EmailConfig).filter(EmailConfig.name == config_data.name).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="配置名称已存在")
+
     # 加密密码
     smtp_pass = encryption_service.encrypt(config_data.smtp_pass)
 
@@ -88,6 +93,15 @@ async def update_config(
     config = db.query(EmailConfig).filter(EmailConfig.id == config_id).first()
     if not config:
         raise HTTPException(status_code=404, detail="配置不存在")
+
+    # 检查名称是否被其他配置使用
+    if config_data.name is not None and config_data.name != config.name:
+        existing = db.query(EmailConfig).filter(
+            EmailConfig.name == config_data.name,
+            EmailConfig.id != config_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="配置名称已存在")
 
     if config_data.name is not None:
         config.name = config_data.name

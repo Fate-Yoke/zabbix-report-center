@@ -207,20 +207,55 @@
     // 保存配置
     document.getElementById('save-config').addEventListener('click', async function() {
         const configId = document.getElementById('config-id').value;
+        const name = document.getElementById('config-name').value.trim();
+        const smtpServer = document.getElementById('config-smtp-server').value.trim();
+        const smtpPort = document.getElementById('config-smtp-port').value;
+        const smtpUser = document.getElementById('config-smtp-user').value.trim();
+        const smtpPass = document.getElementById('config-smtp-pass').value;
+        const mailFrom = document.getElementById('config-mail-from').value.trim();
+
+        // 前端验证
+        if (!name) {
+            alert('请输入配置名称');
+            return;
+        }
+        if (!smtpServer) {
+            alert('请输入SMTP服务器地址');
+            return;
+        }
+        if (!smtpPort || smtpPort < 1 || smtpPort > 65535) {
+            alert('请输入有效的端口号（1-65535）');
+            return;
+        }
+        if (!smtpUser) {
+            alert('请输入SMTP用户名');
+            return;
+        }
+        if (!configId && !smtpPass) {
+            alert('请输入SMTP密码');
+            return;
+        }
+        if (!mailFrom) {
+            alert('请输入发件人地址');
+            return;
+        }
+        if (!mailFrom.includes('@')) {
+            alert('请输入有效的邮箱地址');
+            return;
+        }
 
         const data = {
-            name: document.getElementById('config-name').value,
-            smtp_server: document.getElementById('config-smtp-server').value,
-            smtp_port: parseInt(document.getElementById('config-smtp-port').value),
-            smtp_user: document.getElementById('config-smtp-user').value,
+            name: name,
+            smtp_server: smtpServer,
+            smtp_port: parseInt(smtpPort),
+            smtp_user: smtpUser,
             use_ssl: document.getElementById('config-use-ssl').value === 'true',
-            mail_from: document.getElementById('config-mail-from').value,
+            mail_from: mailFrom,
             is_active: document.getElementById('config-is-active').checked
         };
 
-        const password = document.getElementById('config-smtp-pass').value;
-        if (password) {
-            data.smtp_pass = password;
+        if (smtpPass) {
+            data.smtp_pass = smtpPass;
         }
 
         const url = configId ? `/api/email-config/${configId}` : '/api/email-config';
