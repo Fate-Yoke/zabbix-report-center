@@ -89,9 +89,9 @@ npm install
 npm run dev
 ```
 
-后端访问 http://localhost:38204，前端开发服务器访问 http://localhost:5173
+后端 API 运行在 http://localhost:38204，前端开发服务器运行在 http://localhost:37201
 
-完整访问地址：http://localhost:37201（前端代理后端，统一入口）
+访问 http://localhost:37201 即可使用完整应用。
 
 ### 生产部署
 
