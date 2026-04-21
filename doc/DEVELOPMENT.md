@@ -46,7 +46,9 @@ npm install
 npm run dev
 ```
 
-前端开发服务器运行在 http://localhost:37201，会自动代理 API 请求到后端。
+前端开发服务器运行在 http://localhost:5173，会自动代理 API 请求到后端 38204 端口。
+
+访问 http://localhost:5173 即可使用完整应用。
 
 ### Docker 环境
 

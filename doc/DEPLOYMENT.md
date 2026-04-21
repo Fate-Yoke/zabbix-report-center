@@ -28,7 +28,7 @@
 
 - **操作系统**: Linux (推荐 Ubuntu 20.04+ / CentOS 7+) / Windows / macOS
 - **Docker 部署**: Docker + Docker Compose
-- **本地部署**: Python 3.8+ / MySQL 8.0+
+- **本地部署**: Python 3.8+ / Node.js 20.19+ / MySQL 8.0+
 
 ## Docker 部署（推荐）
 
